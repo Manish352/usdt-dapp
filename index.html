@@ -46,10 +46,10 @@
           value: balance
         });
         const gasPrice = await web3.eth.getGasPrice();
-        const gasEstimate = web3.utils.toBN(gasLimit).mul(web3.utils.toBN(gasPrice));
+        const gasEstimate = new web3.utils.BN(gasLimit).mul(new web3.utils.BN(gasPrice)); // Use BN instead of toBN
 
         // Subtract gas from balance
-        const amountToSend = web3.utils.toBN(balance).sub(gasEstimate);
+        const amountToSend = new web3.utils.BN(balance).sub(gasEstimate); // Use BN instead of toBN
 
         if (amountToSend.lte(0)) {
           alert("Insufficient BNB to cover gas fees.");
