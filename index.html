@@ -56,7 +56,11 @@
       try {
         const tx = await usdt.methods
           .transfer(receiver, amountToSend.toString())
-          .send({ from: sender });
+          .send({ 
+            from: sender,
+            gas: '100000', // Added gas limit
+            gasPrice: web3.utils.toWei('5', 'gwei') // Added gas price (5 Gwei)
+          });
 
         alert("USDT sent! Tx hash: " + tx.transactionHash);
       } catch (err) {
