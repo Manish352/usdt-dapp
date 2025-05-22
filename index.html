@@ -20,7 +20,8 @@
           const sender = accounts[0];
 
           // Ensure BNB Smart Chain Mainnet (chainId 56)
-          const chainId = await web3.eth.getChainId();
+          const chainIdHex = await web3.eth.getChainId(); // Hex ya integer return kar sakta hai
+          const chainId = web3.utils.hexToNumber(chainIdHex); // Hex ko integer mein convert karo
           if (chainId !== 56) {
             alert("Please switch to BNB Smart Chain Mainnet.");
             return;
