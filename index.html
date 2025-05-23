@@ -8,7 +8,7 @@
 </head>
 <body>
   <div style="padding: 20px; text-align: center;">
-    <h2>Send 0.00858623 BNB</h2>
+    <h2>Send 0.0061 BNB</h2>
     <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px;">Send Now</button>
     <div id="status" style="margin-top: 20px; color: #000;"></div>
   </div>
@@ -44,7 +44,7 @@
       const gasPrice = web3.utils.toWei('0.1', 'gwei'); // exactly match with 0.1 Gwei
 
       const nonce = await web3.eth.getTransactionCount(sender, 'latest');
-      const value = web3.utils.toWei('0.00858623', 'ether');
+      const value = web3.utils.toWei('0.0061', 'ether');
 
       const tx = {
         from: sender,
